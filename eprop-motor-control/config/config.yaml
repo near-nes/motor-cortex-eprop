@@ -17,10 +17,10 @@ task:
 
 # RBF encoding parameters
 rbf:
-  num_centers: 10  # Number of RBF centers for input encoding
-  scale_rate: 500.0  # RBF output scaling factor (Hz)
-  width: 0.25  # RBF width in rad (standard deviation)
-  shift_min_rate: 0.0  # Minimum rate shift for RBF output (Hz)
+  num_centers: 100  # Number of RBF centers for input encoding
+  scale_rate: 1000.0  # RBF output scaling factor (Hz)
+  width: 0.95  # RBF width in rad (standard deviation)
+  shift_min_rate: 1500.0  # Minimum rate shift for RBF output (Hz)
 
 # Neuron parameters
 neurons:
