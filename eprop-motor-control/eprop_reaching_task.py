@@ -569,7 +569,13 @@ def run_simulation(
         width = rbf_cfg["width"]
 
         # Define the number of centers and create RBF inputs
-        centers = np.linspace(0.0, np.pi, num_centers)
+        
+        # Get the minimum angle from all trajectory samples
+        min_angle = np.min([np.min(traj) for traj in trajectories])
+        if min_angle > 0.5:
+            min_angle = 0.5
+
+        centers = np.linspace(min_angle, np.pi, num_centers)
         rbf_inputs_list = []
         silent_steps = int(silent_period / duration["step"]) if silent_period > 0 else 0
         zeros_block = (
@@ -628,7 +634,11 @@ def run_simulation(
             gen_poisson_in, {"rate_times": in_rate_times, "rate_values": input_spk_rate}
         )
         # Set the desired center for each rb_neuron's receptive field
-        angle_centers = np.linspace(0.0, np.pi, num_centers)
+        # Get the minimum angle from all trajectory samples
+        min_angle = np.min([np.min(traj) for traj in trajectories])
+        if min_angle > 0.5:
+            min_angle = 0.5
+        angle_centers = np.linspace(min_angle, np.pi, num_centers)
         desired_rates = angle_centers * rbf_cfg["scale_rate"] + shift_min_rate
         print(f"Setting desired rates for rb_neurons: {desired_rates}")
         print(params_rb_neuron)

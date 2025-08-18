@@ -515,6 +515,9 @@ def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, param
         neg_spikes = target_spikes[target_spikes[:,0] > 50, 1]
         pos_hist, bin_edges = np.histogram(pos_spikes, bins=num_bins, range=(0, duration_ms))
         neg_hist, _ = np.histogram(neg_spikes, bins=num_bins, range=(0, duration_ms))
+        # Smooth the histograms
+        pos_hist = np.convolve(pos_hist, np.ones(20)/10, mode='same')
+        neg_hist = np.convolve(neg_hist, np.ones(20)/10, mode='same')
         axs[1, i].plot(bin_edges[:-1], pos_hist, color='tab:blue', label='pos')
         axs[1, i].plot(bin_edges[:-1], neg_hist, color='tab:red', label='neg')
         axs[1, i].set_title(f"Target Signal {i+1}")
@@ -561,7 +564,7 @@ def tutorial_plot_spike_raster(spikes, nrns_rec, xlims_list, save_path=None):
     """
     fig, axs = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
     for i, xlims in enumerate(xlims_list):
-        idc_times = (spikes['times'] > xlims[0]) & (spikes['times'] < xlims[1])
+        idc_times = (spikes['times'] > xlims[0]) & (spikes['times'] <= xlims[1])
         idc_sender = np.isin(spikes['senders'][idc_times], nrns_rec)
         senders_subset = spikes['senders'][idc_times][idc_sender]
         times_subset = spikes['times'][idc_times][idc_sender]
@@ -621,7 +624,7 @@ def tutorial_plot_output_vs_target(output_mm, xlims_list, save_path=None):
 
     for col, xlims in enumerate(xlims_list):
         for gid in unique_gids:
-            mask = ((senders == gid) & (times > xlims[0]) & (times < xlims[1]))
+            mask = ((senders == gid) & (times > xlims[0]) & (times <= xlims[1]))
             label = labels[gid]
             color = colors[gid]
             axs[0, col].plot(times[mask], readout[mask], color=color, label=f'{label} output')
@@ -631,7 +634,7 @@ def tutorial_plot_output_vs_target(output_mm, xlims_list, save_path=None):
         axs[1, col].set_xlabel('Time (ms)')
         ax_inset = inset_axes(axs[0, col], width="35%", height="30%", loc='upper left', borderpad=2)
         for gid in unique_gids:
-            mask = ((senders == gid) & (times > xlims[0]) & (times < xlims[1]))
+            mask = ((senders == gid) & (times > xlims[0]) & (times <= xlims[1]))
             label = labels[gid]
             color = colors[gid]
             ax_inset.plot(times[mask], target[mask], color=color, alpha=0.6, linewidth=2, label=f'{label} target')
