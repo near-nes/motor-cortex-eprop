@@ -12,7 +12,7 @@
     ],
     "n_samples_per_trajectory_to_use": 1,
     "gradient_batch_size": 1,
-    "n_iter": 50,
+    "n_iter": 500,
     "sequence": 650.0,
     "silent_period": 150.0
   },
@@ -56,8 +56,8 @@
     }
   },
   "synapses": {
-    "w_input": 100,
-    "w_rec": 40,
+    "w_input": 100.0,
+    "w_rec": 60.0,
     "g": 4.0,
     "conn_bernoulli_p": 0.1,
     "average_gradient": false,
