@@ -3,16 +3,10 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-  - ipykernel
-  - numpy
-  - pandas
-  - matplotlib
-  - nest-simulator==3.7
   - python
-  - pyyaml
   - pip
-  - h5py
-  - statsmodels
+  - ipykernel
+  - nest-simulator==3.7
   - cxx-compiler
   - boost
   - boost-cpp
@@ -20,7 +14,3 @@ dependencies:
   - cmake
   - make
   - gsl
-  - pygsl
-  - pip:
-    - nestml
-    - odetoolbox

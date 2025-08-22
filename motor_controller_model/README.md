@@ -70,41 +70,39 @@ You can pass options to the main experiment script, e.g.:
   ```
 
 ## Notes
-- All outputs are saved in `sim_results/` at the repository root.
-- Update your scripts and notebooks to use the new import paths:
-  ```python
-  from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
-  ```
+- All outputs are saved by default in `sim_results/` at the repository root.
 - Refer to the main `README.md` for environment setup and general usage.
 
-## License
-<Specify your license here>
 
+
+
+### Parameter Sweep Examples
+
+- **Scan a single parameter:**
   ```bash
-  python eprop-reaching-task.py --scan-param neurons.n_rec --scan-values 100,200,300
+  python -m motor_controller_model.eprop_reaching_task --scan-param neurons.n_rec --scan-values 100,200,300
   ```
 
 - **Scan multiple parameters (grid search):**
-
   ```bash
-  python eprop-reaching-task.py --scan-param learning_rate_exc,rbf.num_centers --scan-values "0.01,0.001;10,20"
+  python -m motor_controller_model.eprop_reaching_task --scan-param learning_rate_exc,rbf.num_centers --scan-values "0.01,0.001;10,20"
   ```
-
   *Note: Use quotes around `--scan-values` to avoid shell parsing issues with semicolons.*
 
 - **Disable plotting:**
-
   ```bash
-  python eprop-reaching-task.py --no-plot
+  python -m motor_controller_model.eprop_reaching_task --no-plot
   ```
+
 
 ## Configuration
 
-Experiment parameters are set in `config/config.yaml`. You can adjust simulation, task, RBF encoding, and neuron parameters there. These can be overridden at runtime with command-line arguments.
+Experiment parameters are set in `motor_controller_model/config/config.yaml`. You can adjust simulation, task, RBF encoding, and neuron parameters there. These can be overridden at runtime with command-line arguments.
+
 
 ## Environment Setup
 
-The recommended environment includes NEST, NESTML, and build tools. See `environment.yml` for details. Key dependencies:
+The recommended environment includes NEST, NESTML, and build tools. See `motor_controller_model/environment.yml` for details. Key dependencies:
 
 - nest-simulator
 - nestml
@@ -114,30 +112,32 @@ The recommended environment includes NEST, NESTML, and build tools. See `environ
 Create and activate the environment:
 
 ```bash
-mamba env create -f environment.yml
+mamba env create -f motor_controller_model/environment.yml
 mamba activate motor-controller
 ```
 
 This will install all necessary packages, including the NEST simulator and NESTML.
 
+
 ## Results
 
-Simulation results and plots are saved in the `sim_results/` directory, organized by experiment configuration. Each run creates a subfolder with files such as:
+Simulation results and plots are saved in the `sim_results/` directory at the repository root, organized by experiment configuration. Each run creates a subfolder with files such as:
 
 - `training_error.png`: The training loss curve.
 - `spikes_and_dynamics.png`: Visualization of network activity.
 - `weight_matrices.png` & `weight_time_courses.png`: Weight visualizations.
 - `results.npz`: Raw results data.
 
-To aggregate and compare results across runs, use `plot_results.py`:
-
+To aggregate and compare results across runs, use:
 ```bash
-python plot_results.py
+python -m motor_controller_model.plot_results
 ```
+
 
 ## Note on Dale's Law Version
 
 The script `eprop_network_dale-law-not-applied.py` contains an older version of the network implementation without Dale's law and is included here for reference only.
+
 
 ## License
 <Specify your license here>

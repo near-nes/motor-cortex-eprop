@@ -8,16 +8,15 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    "numpy>=2.3.0",
-    "matplotlib>=3.10.3",
-    "pandas>=2.3.0",
-    "pyyaml>=6.0.2",
-    "nestml>=8.0.1",
+    "numpy",
+    "matplotlib",
+    "pandas",
+    "pyyaml",
     "h5py",
     "statsmodels",
     "pygsl",
-    "odetoolbox",
-    "pytest"
+    "nestml",
+    "odetoolbox"
 ]
 
 [build-system]
