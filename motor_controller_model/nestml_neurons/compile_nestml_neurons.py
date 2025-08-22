@@ -1,4 +1,10 @@
-# Generate NEST target code from NESTML files
+
+# Compile and install NESTML neuron models for motor controller simulations.
+#
+# Usage:
+#     python -m motor_controller_model.nestml_neurons.compile_nestml_neurons
+#
+# This script generates NEST target code from NESTML files and installs the neuron module for use in simulations.
 
 from pynestml.frontend.pynestml_frontend import generate_nest_target
 

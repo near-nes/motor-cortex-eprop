@@ -22,16 +22,32 @@ Colors and shapes explicitly encode network roles: labeled input neurons (left),
 
 ## Getting Started
 
+
 1. **Environment Setup:**
    - Use the provided `eprop-motor-control/environment.yml` to create a conda/mamba environment with all required dependencies (NEST, NESTML, Python packages, build tools).
+   - **Important:** `nest-simulator` must be installed via mamba/conda, not pip. It is not available on PyPI.
    - Example:
-     ```bash
-     mamba env create -f eprop-motor-control/environment.yml
-     mamba activate motor-controller
-     ```
+      ```bash
+      mamba env create -f eprop-motor-control/environment.yml
+      mamba activate motor-controller
+      ```
+
+2. **Install as a Python Package:**
+    - From the repository root, install the package in editable mode:
+       ```bash
+       pip install -e .
+       ```
+    - This makes `motor_controller_model` importable from anywhere in your environment.
+
+3. **Usage:**
+    - Import modules in your scripts or notebooks as:
+       ```python
+       from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
+       ```
+    - Update your scripts and notebooks to use the new package import paths.
 
 2. **Run Experiments:**
-   - See `eprop-motor-control/README.md` for instructions on running experiments, parameter sweeps, and analyzing results.
+   - See `motor_controller_model/eprop_motor_control/README.md` for instructions on running experiments, parameter sweeps, and analyzing results.
 
 3. **Tutorial Notebook:**
    - Open `motor_controller_eprop_tutorial.ipynb` for a step-by-step guide to running motor control experiments and using the main features of the repository. This notebook is ideal for new users and provides practical examples.

@@ -21,6 +21,10 @@ def plot_all_loss_curves(
         savefig: Whether to save the figure as 'all_loss_curves.png' in results_dir.
         showfig: Whether to display the figure interactively.
         avg_last_n: Number of final iterations to average for the default metric.
+
+    Usage:
+        python -m motor_controller_model.plot_results
+    Outputs are saved in sim_results/ at the repository root.
     """
     import glob
     import numpy as np

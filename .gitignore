@@ -1,10 +1,33 @@
-eprop-motor-control/__pycache__/*
-eprop-motor-control/sim_results/*
-dataset_motor_training/__pycache__/*
-nestml-neurons/nestml_target/*
-nestml-neurons/report/*
-nestml-neurons/nestml_install/*
-testing-nestml-neurons/target/*
-testing-nestml-neurons/__pycache__/*
-venv/*
-eprop-motor-control/report/*
+# Python package metadata
+motor_controller_model.egg-info/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Python cache
+motor_controller_model/**/__pycache__/
+__pycache__/
+dataset_motor_training/**/__pycache__/
+
+# Build artifacts
+build/
+dist/
+*.so
+*.pyd
+
+# Simulation results and reports
+sim_results/
+report/
+
+# NESTML build outputs
+motor_controller_model/nestml_neurons/nestml_target/
+motor_controller_model/nestml_neurons/report/
+motor_controller_model/testing_nestml_neurons/target/
+motor_controller_model/testing_nestml_neurons/report/
+
+# Ignore environment files
+.venv/

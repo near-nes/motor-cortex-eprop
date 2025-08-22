@@ -1,10 +1,11 @@
+
 """
 trained_weights_net.py
 ----------------------
 
-This script loads trained weights from a previously trained e-prop motor control network
+This module loads trained weights from a previously trained e-prop motor control network
 and runs a test simulation using NEST. It reproduces the network setup and input encoding
-used in the main training script (eprop-reaching-task.py) for consistency.
+used in the main training module (eprop_reaching_task.py) for consistency.
 
 Key steps:
 - Loads configuration parameters from config.yaml.
@@ -16,9 +17,13 @@ Key steps:
 
 Input connections:
 - Each rb_neuron is connected to a group of excitatory and inhibitory recurrent neurons,
-  matching the grouping logic in eprop-reaching-task.py.
+  matching the grouping logic in eprop_reaching_task.py.
 
-This script is intended for post-training evaluation and visualization.
+This module is intended for post-training evaluation and visualization.
+
+Run as a module:
+    python -m motor_controller_model.trained_weights_net
+Outputs are saved in sim_results/ at the repository root.
 
 Author: Renan Oliveira Shimoura
 """
@@ -34,8 +39,7 @@ import yaml
 mpl.use("Agg")
 
 # Add dataset path for imports
-sys.path.append(str(Path(__file__).resolve().parent.parent / "dataset_motor_training"))
-from load_dataset import load_data_file
+from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
 
 # --------------------------------------------------------------------------------------
 # Load configuration parameters from config.yaml
@@ -69,7 +73,7 @@ duration = duration_task + step_ms
 
 weights_path = (
     Path(__file__).resolve().parent
-    / "sim_results"
+    / "../sim_results"
     / "default_plastic_False_manualRBF_False"
     / "trained_weights.npz"
 )
@@ -270,7 +274,7 @@ axs_raster[1].set_xlabel("Time (ms)")
 axs_raster[1].set_ylabel("Recurrent Neuron ID")
 axs_raster[1].set_title("Raster Plot of Recurrent Neurons")
 plt.tight_layout()
-plt.savefig("./sim_results/trained_weights_raster_plot.png")
+plt.savefig("../sim_results/trained_weights_raster_plot.png")
 
 # Plot loaded weights and extracted weights for verification
 colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
@@ -329,7 +333,7 @@ axs[1, 1].set_xlabel("Presynaptic neuron")
 axs[1, 1].set_ylabel("Postsynaptic neuron")
 plt.colorbar(pc3, ax=axs[1, 1])
 plt.tight_layout()
-plt.savefig("./sim_results/trained_weights_comparison.png")
+plt.savefig("../sim_results/trained_weights_comparison.png")
 
 # --- Plot input-to-recurrent weights (rb_neuron to rec) ---
 
@@ -355,4 +359,4 @@ axs_rbrec[1].set_xlabel("Input neuron (rb_neuron)")
 axs_rbrec[1].set_ylabel("Recurrent neuron")
 plt.colorbar(pc_rb_extracted, ax=axs_rbrec[1])
 plt.tight_layout()
-plt.savefig("./sim_results/trained_weights_rb_rec_comparison.png")
+plt.savefig("../sim_results/trained_weights_rb_rec_comparison.png")

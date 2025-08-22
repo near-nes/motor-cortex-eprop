@@ -12,18 +12,18 @@
     ],
     "n_samples_per_trajectory_to_use": 1,
     "gradient_batch_size": 1,
-    "n_iter": 500,
+    "n_iter": 50,
     "sequence": 650.0,
     "silent_period": 150.0
   },
   "rbf": {
     "num_centers": 20,
-    "scale_rate": 500.0,
-    "width": 0.1,
+    "scale_rate": 1000.0,
+    "width": 0.05,
     "shift_min_rate": 0.0
   },
   "neurons": {
-    "n_rec": 300,
+    "n_rec": 100,
     "n_out": 2,
     "exc_ratio": 0.8,
     "rec": {
@@ -52,12 +52,12 @@
     "rb": {
       "kp": 1000.0,
       "base_rate": 0.0,
-      "buffer_size": 50.0
+      "buffer_size": 10.0
     }
   },
   "synapses": {
-    "w_input": 100.0,
-    "w_rec": 60.0,
+    "w_input": 150.0,
+    "w_rec": 40.0,
     "g": 4.0,
     "conn_bernoulli_p": 0.1,
     "average_gradient": false,

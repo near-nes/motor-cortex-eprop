@@ -1,31 +1,32 @@
 r"""
+
 Training a regression model using supervised e-prop plasticity to perform a reaching task.
 
 Description
 ~~~~~~~~~~~
 
-This script demonstrates supervised learning of a regression task with a recurrent spiking
-neural network (SNN) that is equipped with the eligibility propagation (e-prop) plasticity
+This module demonstrates supervised learning of a regression task with a recurrent spiking
+neural network (SNN) equipped with the eligibility propagation (e-prop) plasticity
 mechanism by Bellec et al. [1]_.
 
-In this task, the network learns to generate a reaching trajectory. The network learns to
-reproduce with its overall spiking activity a one-dimensional, one-second-long target signal
-which represents the reaching trajectory.
+The network learns to generate a reaching trajectory, reproducing a one-dimensional, one-second-long target signal
+with its overall spiking activity.
 
-Learning in the SNN is achieved by optimizing the connection weights with e-prop plasticity.
-This plasticity rule requires a specific network architecture. The model consists of a
-recurrent network that receives input encoding the trajectory and projects onto readout
-neurons. The readout neurons compare the network's filtered output signal, $y$, with a
-teacher target signal, $y^*$. The network's training error is assessed by employing a
-mean-squared error loss.
+Learning is achieved by optimizing connection weights with e-prop plasticity. The model consists of a
+recurrent network that receives input encoding the trajectory and projects onto readout neurons. The readout neurons
+compare the network's filtered output signal, $y$, with a teacher target signal, $y^*$. Training error is assessed
+using mean-squared error loss.
 
 Details on the event-based NEST implementation of e-prop can be found in [2]_.
 
-This script includes two methods for encoding the input trajectory:
-1.  **rb_neuron**: A custom NEST neuron model that performs Radial Basis Function (RBF)
-    encoding internally. This is the default and recommended method.
-2.  **Manual RBF**: A manual implementation where RBF activation is calculated in NumPy
-    and fed to Poisson generators. This can be enabled with the `--use-manual-rbf` flag.
+Input encoding methods:
+1.  **rb_neuron**: Custom NEST neuron model for Radial Basis Function (RBF) encoding (default).
+2.  **Manual RBF**: RBF activation calculated in NumPy and fed to Poisson generators (enable with `--use-manual-rbf`).
+
+Run as a module:
+    python -m motor_controller_model.eprop_reaching_task
+
+Outputs are saved in sim_results/ at the repository root.
 
 Author: Renan Oliveira Shimoura
 
@@ -61,8 +62,8 @@ import itertools
 
 # Add the parent directory to the system path for dataset import
 sys.path.append(str(Path(__file__).resolve().parent.parent / "dataset_motor_training"))
-from load_dataset import load_data_file
-from plot_results import (
+from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
+from motor_controller_model.plot_results import (
     plot_training_error,
     plot_spikes_and_dynamics,
     plot_weight_time_courses,
@@ -482,7 +483,7 @@ def run_simulation(
         dataset_path = None
     else:
         dataset_path = (
-            Path(__file__).resolve().parent.parent
+            Path(__file__).resolve().parent
             / "dataset_motor_training"
             / "sample_data"
             / "dataset_spikes.gdf"
@@ -977,7 +978,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Prepare for single run or parameter scan
-    results_dir = os.path.join(os.path.dirname(__file__), "sim_results")
+    results_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sim_results")
     os.makedirs(results_dir, exist_ok=True)
 
     # Parse custom file arguments

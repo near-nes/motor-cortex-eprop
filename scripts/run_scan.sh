@@ -16,7 +16,7 @@ source "$(git rev-parse --show-toplevel)/env_load_hambach.sh"
 export LD_LIBRARY_PATH="/users/shimoura/gits/motor-controller-model/nestml-neurons/nestml_install:$LD_LIBRARY_PATH"
 
 # Run Python scripts
-python eprop-reaching-task.py --use-manual-rbf &
-python eprop-reaching-task.py &
+python -m motor_controller_model.eprop_reaching_task --use-manual-rbf &
+python -m motor_controller_model.eprop_reaching_task &
 wait
-python trained_weights_net.py
+python -m motor_controller_model.trained_weights_net
