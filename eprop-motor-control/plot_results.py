@@ -484,8 +484,11 @@ def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, param
     duration_ms = 650
     num_bins = 650
 
-    fig, axs = plt.subplots(2, n_trials, figsize=(5*n_trials, 6), sharex='col', 
-                           gridspec_kw={'height_ratios': [1, 1]})
+    fig, axs = plt.subplots(
+        2, n_trials, figsize=(5 * n_trials, 6),
+        sharex='col', sharey='row',
+        gridspec_kw={'height_ratios': [1, 1]}
+    )
 
     all_trajectories = [np.loadtxt(traj_path) for traj_path in trajectory_files]
     global_min = min(traj.min() for traj in all_trajectories)
@@ -511,13 +514,13 @@ def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, param
         target_spikes = np.loadtxt(tgt_path, delimiter=delimiter)
         if target_spikes.ndim == 1:
             target_spikes = target_spikes.reshape((1, -1))
-        pos_spikes = target_spikes[target_spikes[:,0] <= 50, 1]
-        neg_spikes = target_spikes[target_spikes[:,0] > 50, 1]
+        pos_spikes = target_spikes[target_spikes[:, 0] <= 50, 1]
+        neg_spikes = target_spikes[target_spikes[:, 0] > 50, 1]
         pos_hist, bin_edges = np.histogram(pos_spikes, bins=num_bins, range=(0, duration_ms))
         neg_hist, _ = np.histogram(neg_spikes, bins=num_bins, range=(0, duration_ms))
         # Smooth the histograms
-        pos_hist = np.convolve(pos_hist, np.ones(20)/10, mode='same')
-        neg_hist = np.convolve(neg_hist, np.ones(20)/10, mode='same')
+        pos_hist = np.convolve(pos_hist, np.ones(20) / 10, mode='same')
+        neg_hist = np.convolve(neg_hist, np.ones(20) / 10, mode='same')
         axs[1, i].plot(bin_edges[:-1], pos_hist, color='tab:blue', label='pos')
         axs[1, i].plot(bin_edges[:-1], neg_hist, color='tab:red', label='neg')
         axs[1, i].set_title(f"Target Signal {i+1}")
