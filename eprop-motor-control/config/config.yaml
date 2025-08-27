@@ -17,7 +17,7 @@ task:
 
 # RBF encoding parameters
 rbf:
-  num_centers: 100  # Number of RBF centers for input encoding
+  num_centers: 10  # Number of RBF centers for input encoding
   scale_rate: 1000.0  # RBF output scaling factor (Hz)
   width: 0.95  # RBF width in rad (standard deviation)
   shift_min_rate: 1500.0  # Minimum rate shift for RBF output (Hz)
@@ -49,7 +49,7 @@ neurons:
     tau_m: 20.0  # Membrane time constant (ms)
     V_m: 0.0  # Initial membrane potential (mV)
   rb:
-    kp: 1000.0         # Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)
+    kp: 1.0         # Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)
     base_rate: 0.0     # Base firing rate in Hz
     buffer_size: 50.0   # Size of the sliding window in ms
 
