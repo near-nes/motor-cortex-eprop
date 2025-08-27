@@ -36,16 +36,25 @@ class M1MotorCortexEprop(M1SubModule):
         self.rec_out = self.nest.Create(
             "spike_recorder", {"record_to": "ascii", "label": "mc_m1_out"}
         )
-        params_rb_neuron = self.config["neurons"]["rb"].copy()
-        params_rb_neuron["sdev"] = 200
-        params_rb_neuron["max_peak_rate"] = 2800
+        self.rec_rec = self.nest.Create(
+            "spike_recorder", {"record_to": "ascii", "label": "mc_m1_recurrent"}
+        )
+        # params_rb_neuron = self.config["neurons"]["rb"].copy()
+        params_rb_neuron = {
+            **self.config["neurons"]["rb"].copy(),
+            "sdev": 10,
+            "max_peak_rate": 5000,
+            "simulation_steps": self.sim_steps,
+            "base_rate": 0,
+        }
         # params_rb_neuron["sdev"] = self.scale_rate * self.config["rbf"]["width"]
         # params_rb_neuron["max_peak_rate"] = self.scale_rate / self.step_ms
-        params_rb_neuron["simulation_steps"] = self.sim_steps
         self.nest.SetStatus(self.nrns_rb, params_rb_neuron)
-
-        angle_centers = np.linspace(0.0, np.pi, self.n_rb)
-        desired_rates = angle_centers * self.scale_rate
+        min_rate = 0
+        max_rate = 170
+        desired_rates = np.linspace(min_rate, max_rate, self.n_rb)
+        # angle_centers = np.linspace(0.0, np.pi, self.n_rb)
+        # desired_rates = angle_centers * self.scale_rate + min_rate
         print("desired rates:")
         print(desired_rates)
         for i, nrn in enumerate(self.nrns_rb):
@@ -56,13 +65,22 @@ class M1MotorCortexEprop(M1SubModule):
         self.nrns_rec = self.nest.Create(
             "eprop_iaf_bsshslm_2020", self.n_rec, params_nrn_rec
         )
-        self.nrns_out = self.nest.Create("iaf_cond_alpha", self.n_out)
+        # self.nrns_out = self.nest.Create(
+        #     "iaf_cond_alpha",
+        #     self.n_out,
+        # )
+        self.nrns_out = self.nest.Create(
+            "basic_neuron_nestml",
+            self.n_out,
+        )
+        self.nest.SetStatus(self.nrns_out, {"simulation_steps": self.sim_steps})
 
     def _connect_network(self):
         params_conn_one_to_one = {"rule": "one_to_one", "allow_autapses": False}
 
         self.nest.Connect(self.nrns_rb, self.rec_rb)
         self.nest.Connect(self.nrns_out, self.rec_out)
+        self.nest.Connect(self.nrns_rec, self.rec_rec)
 
         nrns_rb_ids = self.rb_rec_weights["source"] + min(self.nrns_rb.tolist())
         nrns_rec_ids = self.rb_rec_weights["target"] + min(self.nrns_rec.tolist())
@@ -93,6 +111,7 @@ class M1MotorCortexEprop(M1SubModule):
 
         nrns_rec_ids = self.rec_out_weights["source"] + min(self.nrns_rec.tolist())
         nrns_out_ids = self.rec_out_weights["target"] + min(self.nrns_out.tolist())
+        print(f"connecting these out ids:", nrns_out_ids)
         self.nest.Connect(
             nrns_rec_ids,
             nrns_out_ids,
@@ -108,7 +127,7 @@ class M1MotorCortexEprop(M1SubModule):
         params_conn_all_to_all = {"rule": "all_to_all", "allow_autapses": False}
         params_syn_static = {
             "synapse_model": "static_synapse",
-            "weight": 100.0,
+            "weight": 1.0,
             "delay": self.step_ms,
         }
 
@@ -119,3 +138,9 @@ class M1MotorCortexEprop(M1SubModule):
 
     def get_output_pops(self):
         return (self.nrns_out[0], self.nrns_out[1])
+
+    def get_rb_neurons(self):
+        return self.nrns_rb
+
+    def get_recurrent_neurons(self):
+        return self.nrns_rec
