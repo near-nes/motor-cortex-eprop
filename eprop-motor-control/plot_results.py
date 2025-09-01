@@ -504,8 +504,6 @@ def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, param
         axs[0, i].set_xlabel("Time (ms)")
         if i == 0:
             axs[0, i].set_ylabel("Joint Angle (rad)")
-        else:
-            axs[0, i].set_yticklabels([])
 
         tgt_path = target_files[i]
         with open(tgt_path, "r") as f:
@@ -527,8 +525,6 @@ def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, param
         axs[1, i].set_xlabel("Time (ms)")
         if i == 0:
             axs[1, i].set_ylabel("Target Spike Rate")
-        else:
-            axs[1, i].set_yticklabels([])
         axs[1, i].grid(True, linestyle='--', alpha=0.3)
         axs[1, i].legend()
 
