@@ -2,7 +2,7 @@
 simulation:
   rng_seed: 1234  # Random seed for reproducibility
   print_time: false  # Print simulation progress (true/false)
-  total_num_virtual_procs: 4  # Number of virtual processes for NEST
+  total_num_virtual_procs: 32  # Number of virtual processes for NEST
   step: 1.0  # Simulation time step (ms)
 
 # Task/experiment setup parameters
