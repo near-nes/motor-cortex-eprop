@@ -47,10 +47,6 @@ Colors and shapes explicitly encode network roles: labeled input neurons (left),
          pip install .
          ```
       - You must manually install system-level dependencies (e.g., `nest-simulator`, compilers, boost, gsl, etc.) using your OS package manager or conda/mamba.
-      - Example (Linux):
-         ```bash
-         mamba install nest-simulator boost gsl cmake make
-         ```
       - See documentation for details on required system packages.
 
 
