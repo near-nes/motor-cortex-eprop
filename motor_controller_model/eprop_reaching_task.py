@@ -568,6 +568,27 @@ def run_simulation(
                     (np.zeros(silent_steps), desired_targets_list[k][i])
                 )
 
+    # Shift the trajectories input to the left to improve training performance
+    input_shift_ms = task_cfg.get("input_shift_ms", 0)
+    if input_shift_ms > 0:
+        # For debugging: plot the first trajectory
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(5, 4))
+        plt.plot(resampled_time, trajectories[0], label="Original Trajectory")
+        
+        n_steps = int(input_shift_ms / duration["step"])  # Number of steps to shift
+        for i in range(len(trajectories)):
+            trajectories[i] = np.roll(trajectories[i], -n_steps)
+            # set the last n_steps to the previous last value to avoid discontinuity
+            trajectories[i][-n_steps:] = trajectories[i][-n_steps - 1]
+
+        plt.plot(resampled_time, trajectories[0], label="Shifted Trajectory")
+        plt.xlabel("Time (ms)")
+        plt.ylabel("Trajectory Value")
+        plt.title("Trajectory Before and After Shifting")
+        plt.legend()
+        plt.show()
+
     # %% ###########################################################################################################
     # Create Input and Output Signals
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
