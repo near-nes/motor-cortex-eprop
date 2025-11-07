@@ -217,7 +217,20 @@ def run_simulation(
     else:
         # Default: Use the custom 'rb_neuron' model for RBF encoding
         print("Using 'rb_neuron' for RBF implementation.")
-        nest.Install("motor_neuron_module")
+        
+        try:
+            nest.Install("motor_neuron_module")
+            print("motor_neuron_module installed successfully.")
+        except nest.NESTError as e:
+            print(f"NESTML motor_neuron_module not found: {e}")
+            print("Compiling NESTML neurons...")
+            from motor_controller_model.nestml_neurons.compile_nestml_neurons import compile_nestml_neurons
+            compile_nestml_neurons()
+            # Re-setup the kernel since compilation resets it
+            nest.ResetKernel()
+            nest.set(**params_setup)
+            nest.Install("motor_neuron_module")
+            print("motor_neuron_module compiled and installed successfully.")
 
         # Define parameters for the rb_neuron
         params_rb_neuron = nrn_cfg["rb"]
