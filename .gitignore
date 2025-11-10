@@ -30,4 +30,4 @@ motor_controller_model/testing_nestml_neurons/target/
 motor_controller_model/testing_nestml_neurons/report/
 
 # Ignore environment files
-.venv/
+venv/
