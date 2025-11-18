@@ -73,7 +73,7 @@ This will run the reaching task experiment and save results to `sim_results/`.
 
 ### 3. Tutorial Notebook
 
-Open [`motor_controller_eprop_tutorial.ipynb`](motor_controller_eprop_tutorial.ipynb) for a step-by-step guide to running motor control experiments and using the main features of the repository. **Recommended for new users.**
+Open [`motor_controller_eprop_tutorial.ipynb`](motor_controller_eprop_tutorial.ipynb) for a step-by-step guide to running motor control experiments and using the main features of the repository.
 
 ### 4. Additional Resources
 
