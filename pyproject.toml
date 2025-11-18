@@ -1,0 +1,27 @@
+[project]
+name = "motor_controller_model"
+version = "0.1.0"
+description = "Motor controller model package"
+authors = [
+    { name = "Renan O. Shimoura" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "seaborn",
+    "pandas",
+    "pyyaml",
+    "h5py",
+    "statsmodels",
+    "nestml",
+    "odetoolbox"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["motor_controller_model*"]

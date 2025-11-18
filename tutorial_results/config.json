@@ -2,7 +2,7 @@
   "simulation": {
     "rng_seed": 1234,
     "print_time": false,
-    "total_num_virtual_procs": 4,
+    "total_num_virtual_procs": 32,
     "step": 1.0
   },
   "task": {
@@ -14,7 +14,8 @@
     "gradient_batch_size": 1,
     "n_iter": 500,
     "sequence": 650.0,
-    "silent_period": 150.0
+    "silent_period": 150.0,
+    "input_shift_ms": 50
   },
   "rbf": {
     "num_centers": 20,
@@ -57,7 +58,7 @@
   },
   "synapses": {
     "w_input": 150.0,
-    "w_rec": 60.0,
+    "w_rec": 40.0,
     "g": 4.0,
     "conn_bernoulli_p": 0.1,
     "average_gradient": false,

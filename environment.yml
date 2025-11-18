@@ -1,0 +1,16 @@
+name: motor-controller
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python
+  - pip
+  - ipykernel
+  - nest-simulator==3.7
+  - cxx-compiler
+  - boost
+  - boost-cpp
+  - libboost
+  - cmake
+  - make
+  - gsl

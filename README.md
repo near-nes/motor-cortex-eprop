@@ -11,40 +11,76 @@ On the left, labeled "input neurons," time-varying joint angles are received as 
 The recurrent network outputs to two readout neurons via e-prop synapses: a red circle ("pos" channel) and a blue circle ("neg" channel), each corresponding to a motor output direction. Gray arrows from these readout neurons point to target signals, illustrating supervised learning via error comparison. The purple arrow labeled "B" represents the feedback path by which the readout neurons send the e-prop learning signal (global error signal) back to the recurrent network, enabling biologically plausible online synaptic adaptation.  
 Colors and shapes explicitly encode network roles: labeled input neurons (left), excitatory reservoir neurons (black triangles), inhibitory population (red circle), and output channels (red and blue circles).
 
+
 ## Repository Structure
 
-* `motor_controller_eprop_tutorial.ipynb` — Jupyter notebook tutorial demonstrating how to use the main modules and run motor control experiments with e-prop. Recommended for new users to get started quickly.
-* `eprop-motor-control/` — Main module for running motor control experiments, training spiking networks, analyzing results, and visualizing outputs. See its README for detailed usage and options.
-* `dataset_motor_training/` — Contains trajectory data, spike datasets, and utilities for dataset handling. Includes a README describing the dataset format.
-* `nestml-neurons/` — NESTML neuron model files and generated NEST target code for custom neuron modules.
-* `testing-nestml-neurons/` — Scripts and Jupyter notebooks for compiling, installing, and testing custom NESTML neuron models.
-* `report/` — Documentation, figures, or analysis reports (if present).
+- [`motor_controller_eprop_tutorial.ipynb`](motor_controller_eprop_tutorial.ipynb) — Jupyter notebook tutorial demonstrating how to use the main modules and run motor control experiments with e-prop. Recommended for new users to get started quickly.
+- [`motor_controller_model/`](motor_controller_model/) — Main package containing all code for running motor control experiments, training spiking networks, analyzing results, and visualizing outputs. See its [README](motor_controller_model/README.md) for detailed usage and options.
+- [`motor_controller_model/dataset_motor_training/`](motor_controller_model/dataset_motor_training/) — Contains trajectory data, spike datasets, and utilities for dataset handling. Includes a [README](motor_controller_model/dataset_motor_training/README.md) describing the dataset format.
+- [`motor_controller_model/nestml_neurons/`](motor_controller_model/nestml_neurons/) — NESTML neuron model files and scripts for compiling custom neuron modules. See its [README](motor_controller_model/nestml_neurons/README.md) for details.
+- [`motor_controller_model/testing_nestml_neurons/`](motor_controller_model/testing_nestml_neurons/) — Scripts and Jupyter notebooks for compiling, installing, and testing custom NESTML neuron models. See its [README](motor_controller_model/testing_nestml_neurons/README.md) for details.
+- `sim_results/` — Output directory for simulation results, plots, and data (created automatically).
+- [`environment.yml`](environment.yml) — Conda/mamba environment specification with all required dependencies.
+- [`pyproject.toml`](pyproject.toml) — Python package configuration and pip dependencies.
 
 ## Getting Started
 
-1. **Environment Setup:**
-   - Use the provided `eprop-motor-control/environment.yml` to create a conda/mamba environment with all required dependencies (NEST, NESTML, Python packages, build tools).
-   - Example:
-     ```bash
-     mamba env create -f eprop-motor-control/environment.yml
-     mamba activate motor-controller
-     ```
+### 1. Environment Setup
 
-2. **Run Experiments:**
-   - See `eprop-motor-control/README.md` for instructions on running experiments, parameter sweeps, and analyzing results.
+**Option A: Full conda/mamba environment (Recommended)**
 
-3. **Tutorial Notebook:**
-   - Open `motor_controller_eprop_tutorial.ipynb` for a step-by-step guide to running motor control experiments and using the main features of the repository. This notebook is ideal for new users and provides practical examples.
+This is the easiest approach as it handles all system-level and Python dependencies automatically.
 
-4. **Network Overview Figure:**
-   - Refer to `overview_network.png` for a visual summary of the spiking neural network architecture used in the motor control experiments. This figure helps clarify the network's components and connectivity.
+```bash
+# Create environment from specification
+mamba env create -f environment.yml
+mamba activate motor-controller
 
-3. **Dataset:**
-   - See `dataset_motor_training/README.md` for details on the dataset format and usage.
+# Install the package in editable mode
+pip install -e .
+```
 
-## Submodule READMEs
+- Uses [`environment.yml`](environment.yml) to install all dependencies including `nest-simulator`
+- **Important:** `nest-simulator` must be installed via mamba/conda, not pip (not available on PyPI)
+- Key dependencies: nest-simulator, nestml, numpy, pandas, matplotlib, h5py, statsmodels, cmake, make, boost, gsl
 
-Each main folder contains its own README with specific instructions and details. Refer to those for module-specific workflows.
+**Option B: Manual environment (pyenv, venv, or system Python)**
+
+If you prefer to manage Python versions with venv:
+
+```bash
+# Example with venv
+python -m venv venv
+source venv/bin/activate
+
+# Install the package with Python dependencies
+pip install -e .
+```
+
+- Python dependencies are listed in [`pyproject.toml`](pyproject.toml) and installed automatically
+- **You must manually install** system-level dependencies:
+  - `nest-simulator` (via conda, OS package manager, or [build from source](https://nest-simulator.readthedocs.io/))
+
+### 2. Quick Start
+
+Run a motor control experiment using the main simulation module:
+```bash
+python -m motor_controller_model.eprop_reaching_task --use-manual-rbf
+```
+This will run the reaching task experiment and save results to `sim_results/`.
+
+**For detailed usage, command-line options, and parameter sweeps**, see the [motor_controller_model README](motor_controller_model/README.md).
+
+### 3. Tutorial Notebook
+
+Open [`motor_controller_eprop_tutorial.ipynb`](motor_controller_eprop_tutorial.ipynb) for a step-by-step guide to running motor control experiments and using the main features of the repository.
+
+### 4. Additional Resources
+
+- **Network Architecture:** See [`overview_network.png`](overview_network.png) for a visual summary of the spiking neural network architecture (Figure 1 above)
+- **Dataset Information:** See [`motor_controller_model/dataset_motor_training/README.md`](motor_controller_model/dataset_motor_training/README.md) for details on the dataset format and usage
+- **Package Documentation:** See [`motor_controller_model/README.md`](motor_controller_model/README.md) for detailed API usage
+
 
 ## License
 <Specify your license here>
