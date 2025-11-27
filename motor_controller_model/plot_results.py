@@ -458,17 +458,20 @@ def plot_weight_matrices(weights_pre_train, weights_post_train, colors, out_path
 
 def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, params, save_path=None):
     """
-    Plot joint angle trajectories and corresponding target spike signals for tutorial visualization.
+    Plot input data and corresponding target signals for tutorial visualization.
 
     This function is specific to the motor-controller SNN tutorial.
-    It displays the input trajectories and expected output spike rates ("pos" and "neg" channels) used by the model.
+    It automatically detects whether the input is trajectory data or spike input data and visualizes accordingly:
+    - Trajectory mode: Shows joint angle trajectories and expected output spike rates
+    - Spike input mode: Shows input spike rasters (planner) and target spike rasters (M1)
 
     Parameters
     ----------
-    trajectory_files : list of str
-        List of file paths to joint angle trajectory data.
-    target_files : list of str
-        List of file paths to target spike raster data.
+    trajectory_files : list of str or None
+        List of file paths to joint angle trajectory data. Can be None for spike input mode.
+    target_files : list of str or list of dict
+        List of file paths to target spike raster data, or list of dicts with 'input' and 'output' keys
+        for spike input mode.
     params : dict
         Dictionary of simulation/encoding parameters (may be used for plot annotation).
     save_path : str, optional
@@ -481,59 +484,179 @@ def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, param
 
     Example
     -------
+    >>> # Trajectory mode
     >>> tutorial_plot_trajectories_and_targets(trajectory_files, target_files, params)
+    >>> # Spike input mode
+    >>> tutorial_plot_trajectories_and_targets(None, target_files_with_input, params)
     """
-
-    n_trials = len(trajectory_files)
-    duration_ms = 650
-    num_bins = 650
-
-    fig, axs = plt.subplots(
-        2, n_trials, figsize=(5 * n_trials, 6),
-        sharex='col', sharey='row',
-        gridspec_kw={'height_ratios': [1, 1]}
+    from motor_controller_model.eprop_reaching_task import load_spike_data
+    
+    # Detect spike input mode
+    is_spike_input = (
+        isinstance(target_files, list) and 
+        len(target_files) > 0 and 
+        isinstance(target_files[0], dict) and 
+        'input' in target_files[0]
     )
+    
+    if is_spike_input:
+        # Spike input mode: visualize input spikes and processed target signals
+        # Get sequence duration from params (default 1500.0)
+        sequence_duration = params.get('task.sequence', 1500.0) if params else 1500.0
+        n_bins = int(sequence_duration)  # 1 ms bins
+        
+        # Process each trajectory
+        n_trajectories = len(target_files)
+        fig, axes = plt.subplots(2, n_trajectories, figsize=(7 * n_trajectories, 8),
+                                 sharex='col', sharey='row')
+        
+        # Handle single trajectory case (axes won't be 2D array)
+        if n_trajectories == 1:
+            axes = axes.reshape(-1, 1)
+        
+        for traj_idx in range(n_trajectories):
+            input_spec = target_files[traj_idx]['input']
+            output_spec = target_files[traj_idx]['output']
+            
+            # Extract file paths (handle both tuple and single file formats)
+            if isinstance(input_spec, tuple):
+                input_files_pos, input_files_neg = input_spec
+            else:
+                input_files_pos = input_spec
+                input_files_neg = None
+                
+            if isinstance(output_spec, tuple):
+                target_files_pos, target_files_neg = output_spec
+            else:
+                target_files_pos = output_spec
+                target_files_neg = None
+            
+            # Load spike data
+            input_spikes_pos = load_spike_data(input_files_pos)
+            input_spikes_neg = load_spike_data(input_files_neg) if input_files_neg else None
+            target_spikes_pos = load_spike_data(target_files_pos)
+            target_spikes_neg = load_spike_data(target_files_neg) if target_files_neg else None
+            
+            # TOP ROW: Input spike rasters (combined pos + neg)
+            ax = axes[0, traj_idx]
+            ax.scatter(input_spikes_pos[:, 1], input_spikes_pos[:, 0], s=1, c='blue', alpha=0.6, label='pos')
+            if input_spikes_neg is not None:
+                ax.scatter(input_spikes_neg[:, 1], input_spikes_neg[:, 0], s=1, c='red', alpha=0.6, label='neg')
+            ax.set_ylabel('Neuron ID')
+            ax.set_title(f'Input Spikes: Planner (Trajectory {traj_idx+1})')
+            ax.set_xlim(0, sequence_duration)
+            ax.grid(True, linestyle='--', alpha=0.3)
+            if traj_idx == n_trajectories - 1:
+                ax.legend(loc='upper right', markerscale=5)
+            
+            # BOTTOM ROW: Processed target signals (histograms with smoothing)
+            ax = axes[1, traj_idx]
+            
+            # Process target spikes exactly as done in eprop_reaching_task.py
+            target_hist_pos = np.histogram(
+                target_spikes_pos[:, 1],
+                bins=n_bins,
+                range=(0, sequence_duration)
+            )[0]
+            target_hist_pos = np.convolve(target_hist_pos, np.ones(50) / 10, mode='same')
+            
+            if target_spikes_neg is not None:
+                target_hist_neg = np.histogram(
+                    target_spikes_neg[:, 1],
+                    bins=n_bins,
+                    range=(0, sequence_duration)
+                )[0]
+                target_hist_neg = np.convolve(target_hist_neg, np.ones(50) / 10, mode='same')
+            
+            time_bins = np.linspace(0, sequence_duration, n_bins)
+            ax.plot(time_bins, target_hist_pos, color='blue', label='pos', linewidth=1.5)
+            if target_spikes_neg is not None:
+                ax.plot(time_bins, target_hist_neg, color='red', label='neg', linewidth=1.5)
+            ax.set_xlabel('Time (ms)')
+            ax.set_ylabel('Target Signal (smoothed spike count)')
+            ax.set_title(f'Target Signal: M1 (Trajectory {traj_idx+1})')
+            ax.set_xlim(0, sequence_duration)
+            ax.grid(True, linestyle='--', alpha=0.3)
+            ax.legend()
+        
+        plt.suptitle('Input Spike Trains (Planner) and Processed Target Signals (M1)', fontsize=16)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        # Print statistics for each trajectory
+        for traj_idx in range(n_trajectories):
+            input_spec = target_files[traj_idx]['input']
+            output_spec = target_files[traj_idx]['output']
+            
+            if isinstance(input_spec, tuple):
+                input_files_pos, input_files_neg = input_spec
+                input_spikes_pos = load_spike_data(input_files_pos)
+                input_spikes_neg = load_spike_data(input_files_neg) if input_files_neg else None
+            if isinstance(output_spec, tuple):
+                target_files_pos, target_files_neg = output_spec
+                target_spikes_pos = load_spike_data(target_files_pos)
+                target_spikes_neg = load_spike_data(target_files_neg) if target_files_neg else None
+            
+            print(f"\nTrajectory {traj_idx+1} statistics:")
+            print(f"  Input spikes (planner pos): {len(input_spikes_pos)} spikes from {len(np.unique(input_spikes_pos[:, 0]))} neurons")
+            if input_spikes_neg is not None:
+                print(f"  Input spikes (planner neg): {len(input_spikes_neg)} spikes from {len(np.unique(input_spikes_neg[:, 0]))} neurons")
+            print(f"  Target spikes (M1 pos): {len(target_spikes_pos)} spikes from {len(np.unique(target_spikes_pos[:, 0]))} neurons")
+            if target_spikes_neg is not None:
+                print(f"  Target spikes (M1 neg): {len(target_spikes_neg)} spikes from {len(np.unique(target_spikes_neg[:, 0]))} neurons")
+        
+    else:
+        # Trajectory mode: original visualization
+        n_trials = len(trajectory_files)
+        duration_ms = 650
+        num_bins = 650
 
-    all_trajectories = [np.loadtxt(traj_path) for traj_path in trajectory_files]
-    global_min = min(traj.min() for traj in all_trajectories)
-    global_max = max(traj.max() for traj in all_trajectories)
+        fig, axs = plt.subplots(
+            2, n_trials, figsize=(5 * n_trials, 6),
+            sharex='col', sharey='row',
+            gridspec_kw={'height_ratios': [1, 1]}
+        )
 
-    for i in range(n_trials):
-        trajectory = all_trajectories[i]
-        time_traj = np.linspace(0, duration_ms, len(trajectory))
-        axs[0, i].plot(time_traj, trajectory, color='tab:blue')
-        axs[0, i].set_title(f"Trajectory {i+1}")
-        axs[0, i].set_ylim(global_min, global_max)
-        axs[0, i].grid(True, linestyle='--', alpha=0.3)
-        axs[0, i].set_xlabel("Time (ms)")
-        if i == 0:
-            axs[0, i].set_ylabel("Joint Angle (rad)")
+        all_trajectories = [np.loadtxt(traj_path) for traj_path in trajectory_files]
+        global_min = min(traj.min() for traj in all_trajectories)
+        global_max = max(traj.max() for traj in all_trajectories)
 
-        tgt_path = target_files[i]
-        with open(tgt_path, "r") as f:
-            first_line = f.readline()
-        delimiter = "," if "," in first_line else None
-        target_spikes = np.loadtxt(tgt_path, delimiter=delimiter)
-        if target_spikes.ndim == 1:
-            target_spikes = target_spikes.reshape((1, -1))
-        pos_spikes = target_spikes[target_spikes[:, 0] <= 50, 1]
-        neg_spikes = target_spikes[target_spikes[:, 0] > 50, 1]
-        pos_hist, bin_edges = np.histogram(pos_spikes, bins=num_bins, range=(0, duration_ms))
-        neg_hist, _ = np.histogram(neg_spikes, bins=num_bins, range=(0, duration_ms))
-        # Smooth the histograms
-        pos_hist = np.convolve(pos_hist, np.ones(20) / 10, mode='same')
-        neg_hist = np.convolve(neg_hist, np.ones(20) / 10, mode='same')
-        axs[1, i].plot(bin_edges[:-1], pos_hist, color='tab:blue', label='pos')
-        axs[1, i].plot(bin_edges[:-1], neg_hist, color='tab:red', label='neg')
-        axs[1, i].set_title(f"Target Signal {i+1}")
-        axs[1, i].set_xlabel("Time (ms)")
-        if i == 0:
-            axs[1, i].set_ylabel("Target Spike Rate")
-        axs[1, i].grid(True, linestyle='--', alpha=0.3)
-        axs[1, i].legend()
+        for i in range(n_trials):
+            trajectory = all_trajectories[i]
+            time_traj = np.linspace(0, duration_ms, len(trajectory))
+            axs[0, i].plot(time_traj, trajectory, color='tab:blue')
+            axs[0, i].set_title(f"Trajectory {i+1}")
+            axs[0, i].set_ylim(global_min, global_max)
+            axs[0, i].grid(True, linestyle='--', alpha=0.3)
+            axs[0, i].set_xlabel("Time (ms)")
+            if i == 0:
+                axs[0, i].set_ylabel("Joint Angle (rad)")
 
-    plt.suptitle("Input Trajectories and Corresponding Target Spike Signals (pos/neg)", fontsize=16)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+            tgt_path = target_files[i]
+            with open(tgt_path, "r") as f:
+                first_line = f.readline()
+            delimiter = "," if "," in first_line else None
+            target_spikes = np.loadtxt(tgt_path, delimiter=delimiter)
+            if target_spikes.ndim == 1:
+                target_spikes = target_spikes.reshape((1, -1))
+            pos_spikes = target_spikes[target_spikes[:, 0] <= 50, 1]
+            neg_spikes = target_spikes[target_spikes[:, 0] > 50, 1]
+            pos_hist, bin_edges = np.histogram(pos_spikes, bins=num_bins, range=(0, duration_ms))
+            neg_hist, _ = np.histogram(neg_spikes, bins=num_bins, range=(0, duration_ms))
+            # Smooth the histograms
+            pos_hist = np.convolve(pos_hist, np.ones(20) / 10, mode='same')
+            neg_hist = np.convolve(neg_hist, np.ones(20) / 10, mode='same')
+            axs[1, i].plot(bin_edges[:-1], pos_hist, color='tab:blue', label='pos')
+            axs[1, i].plot(bin_edges[:-1], neg_hist, color='tab:red', label='neg')
+            axs[1, i].set_title(f"Target Signal {i+1}")
+            axs[1, i].set_xlabel("Time (ms)")
+            if i == 0:
+                axs[1, i].set_ylabel("Target Spike Rate")
+            axs[1, i].grid(True, linestyle='--', alpha=0.3)
+            axs[1, i].legend()
+
+        plt.suptitle("Input Trajectories and Corresponding Target Spike Signals (pos/neg)", fontsize=16)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    
     if save_path:
         fig.savefig(save_path)
     plt.show()
@@ -655,6 +778,93 @@ def tutorial_plot_output_vs_target(output_mm, xlims_list, save_path=None):
             ax.grid(True, linestyle='--', alpha=0.3)
     plt.suptitle('Network Output and Error vs Target (shown as inset)', fontsize=18)
     plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    if save_path:
+        fig.savefig(save_path)
+    plt.show()
+
+
+def tutorial_plot_spike_input_and_targets(input_files_pos, input_files_neg, 
+                                           target_files_pos, target_files_neg, save_path=None):
+    """
+    Plot spike input and target data for the motor-controller SNN tutorial (spike input mode).
+
+    This function visualizes the spike trains used as input (from planner) and target output (M1).
+    Displays spike rasters for positive and negative populations for both input and target data.
+
+    Parameters
+    ----------
+    input_files_pos : str
+        Path to input spike file for positive population (planner).
+    input_files_neg : str
+        Path to input spike file for negative population (planner).
+    target_files_pos : str
+        Path to target spike file for positive population (M1).
+    target_files_neg : str
+        Path to target spike file for negative population (M1).
+    save_path : str, optional
+        If provided, saves the figure to this path.
+
+    Returns
+    -------
+    None
+        Shows the plot and saves it if save_path is specified.
+
+    Example
+    -------
+    >>> tutorial_plot_spike_input_and_targets(input_pos, input_neg, target_pos, target_neg)
+    """
+    from motor_controller_model.eprop_reaching_task import load_spike_data
+    
+    # Load spike data
+    input_spikes_pos = load_spike_data(input_files_pos)
+    input_spikes_neg = load_spike_data(input_files_neg)
+    target_spikes_pos = load_spike_data(target_files_pos)
+    target_spikes_neg = load_spike_data(target_files_neg)
+    
+    # Create visualization
+    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
+    
+    # Input spikes - Positive
+    ax = axes[0, 0]
+    ax.scatter(input_spikes_pos[:, 1], input_spikes_pos[:, 0], s=1, c='blue', alpha=0.5)
+    ax.set_ylabel('Neuron ID')
+    ax.set_title('Input Spikes: Planner Positive')
+    ax.set_xlim(0, max(input_spikes_pos[:, 1]))
+    ax.grid(True, linestyle='--', alpha=0.3)
+    
+    # Input spikes - Negative
+    ax = axes[0, 1]
+    ax.scatter(input_spikes_neg[:, 1], input_spikes_neg[:, 0], s=1, c='red', alpha=0.5)
+    ax.set_title('Input Spikes: Planner Negative')
+    ax.set_xlim(0, max(input_spikes_neg[:, 1]))
+    ax.grid(True, linestyle='--', alpha=0.3)
+    
+    # Target spikes - Positive
+    ax = axes[1, 0]
+    ax.scatter(target_spikes_pos[:, 1], target_spikes_pos[:, 0], s=1, c='blue', alpha=0.5)
+    ax.set_xlabel('Time (ms)')
+    ax.set_ylabel('Neuron ID')
+    ax.set_title('Target Spikes: M1 Positive')
+    ax.set_xlim(0, max(target_spikes_pos[:, 1]))
+    ax.grid(True, linestyle='--', alpha=0.3)
+    
+    # Target spikes - Negative
+    ax = axes[1, 1]
+    ax.scatter(target_spikes_neg[:, 1], target_spikes_neg[:, 0], s=1, c='red', alpha=0.5)
+    ax.set_xlabel('Time (ms)')
+    ax.set_title('Target Spikes: M1 Negative')
+    ax.set_xlim(0, max(target_spikes_neg[:, 1]))
+    ax.grid(True, linestyle='--', alpha=0.3)
+    
+    plt.suptitle('Input Spike Trains (Planner) and Target Spike Trains (M1)', fontsize=16)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    
+    # Print statistics
+    print(f"Input spikes (planner pos): {len(input_spikes_pos)} spikes from {len(np.unique(input_spikes_pos[:, 0]))} neurons")
+    print(f"Input spikes (planner neg): {len(input_spikes_neg)} spikes from {len(np.unique(input_spikes_neg[:, 0]))} neurons")
+    print(f"Target spikes (M1 pos): {len(target_spikes_pos)} spikes from {len(np.unique(target_spikes_pos[:, 0]))} neurons")
+    print(f"Target spikes (M1 neg): {len(target_spikes_neg)} spikes from {len(np.unique(target_spikes_neg[:, 0]))} neurons")
+    
     if save_path:
         fig.savefig(save_path)
     plt.show()

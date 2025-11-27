@@ -80,6 +80,7 @@ Open [`motor_controller_eprop_tutorial.ipynb`](motor_controller_eprop_tutorial.i
 - **Network Architecture:** See [`overview_network.png`](overview_network.png) for a visual summary of the spiking neural network architecture (Figure 1 above)
 - **Dataset Information:** See [`motor_controller_model/dataset_motor_training/README.md`](motor_controller_model/dataset_motor_training/README.md) for details on the dataset format and usage
 - **Package Documentation:** See [`motor_controller_model/README.md`](motor_controller_model/README.md) for detailed API usage
+ - **New Options & Diagnostics:** See `motor_controller_model/README.md` -> "New / Important Options" for `task.learning_start`/`task.learning_end`, `input_shift_ms`, and spike-input diagnostic outputs.
 
 
 ## License

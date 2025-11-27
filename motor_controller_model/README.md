@@ -77,6 +77,24 @@ You can pass options to the main experiment script, e.g.:
   python -m motor_controller_model.eprop_reaching_task --plastic-input-to-rec
   ```
 
+- Use custom target spike files (supports NEST .dat format with paired pos/neg files):
+  ```bash
+  # Paired files (new NEST .dat format):
+  python -m motor_controller_model.eprop_reaching_task \
+      --target-files "path/N200_9020_mc_m1_p.dat;path/N200_9020_mc_m1_n.dat"
+  
+  # Paired input-output spike data (planner → M1, requires rb_neuron mode):
+  python -m motor_controller_model.eprop_reaching_task \
+      --target-files "path/N200_9020_planner_p.dat;path/N200_9020_planner_n.dat@path/N200_9020_mc_m1_p.dat;path/N200_9020_mc_m1_n.dat"
+  
+  # Single file (old format, backward compatible):
+  python -m motor_controller_model.eprop_reaching_task \
+      --target-files "path/spikes_from_90_to_20.txt"
+  ```
+  *Note: Paired files are separated by semicolon (`;`), input-output pairing uses `@` separator. 
+  Spike input mode (with `@`) creates parrot neurons that feed the rb_neuron layer.
+  The code auto-detects NEST .dat format, comma-separated, or whitespace-separated files.*
+
 ### Parameter Sweep Examples
 
 - **Scan a single parameter:**
@@ -99,6 +117,16 @@ You can pass options to the main experiment script, e.g.:
 ## Configuration
 
 Experiment parameters are set in [`config/config.yaml`](config/config.yaml). You can adjust simulation, task, RBF encoding, and neuron parameters there. These can be overridden at runtime with command-line arguments (see examples above).
+
+## New / Important Options
+
+- `task.learning_start` and `task.learning_end` (ms): Specify an explicit learning window inside each sequence. When both are provided, the learning window used by NEST's e-prop kernel is `learning_end - learning_start` (clamped to [0, sequence]). Use this to exclude the preparation period (TIME_PREP) from eligibility accumulation and weight updates.
+- `input_shift_ms`: Aligns teacher/target signals with network processing delays. For trajectory (rate) input mode the input trajectories are shifted; for spike-input (paired planner→M1) mode the processed target signals are shifted forward by zero-padding so alignment is equivalent across input modes.
+- Diagnostic outputs (spike-input mode): When running with spike-input data (`--target-files` using the `@` pairing) and plotting enabled, the simulation now saves quick diagnostic figures in the run `result_dir`:
+  - `diag_target_vs_readout_seq0.png`: target vs readout for the first sequence
+  - `diag_spike_raster_seq0.png`: spike raster for the first sequence
+
+Note: NEST interprets `eprop_learning_window` relative to the update times defined by `eprop_update_interval` (set from the sequence length + silent period). If you want the learning window to cover an absolute interval earlier in the sequence, either align `learning_end` with the sequence end (easy option) or schedule explicit update triggers at the desired times.
 
 ## Results
 

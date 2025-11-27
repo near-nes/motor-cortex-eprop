@@ -13,7 +13,14 @@ task:
   gradient_batch_size: 1 # Batch size for gradient computation
   n_iter: 100  # Number of training iterations
   sequence: 650.0  # Sequence length (ms)
-  silent_period: 150.0  # Silent period before receiving the trajectory (ms)
+  silent_period: 150.0  # Silent period before receiving the trajectory (ms) (legacy)
+  # Optional: define the learning period within each sequence (absolute ms)
+  # `learning_start`: start time (ms) inside one sequence where learning becomes active
+  # `learning_end`: end time (ms) inside one sequence where learning stops
+  # If both are provided, the e-prop learning window will be `learning_end - learning_start`.
+  # If omitted, `learning_window` (legacy) or the full `sequence` is used.
+  learning_start: null
+  learning_end: null
 
 # RBF encoding parameters
 rbf:

@@ -26,6 +26,19 @@ Input encoding methods:
 Run as a module:
     python -m motor_controller_model.eprop_reaching_task
 
+Using custom target spike files:
+    # New NEST .dat format with separate positive/negative files:
+    python -m motor_controller_model.eprop_reaching_task \
+        --target-files "path/N200_9020_mc_m1_p.dat;path/N200_9020_mc_m1_n.dat"
+    
+    # Paired input-output spike data (planner → M1, requires rb_neuron mode):
+    python -m motor_controller_model.eprop_reaching_task \
+        --target-files "path/N200_9020_planner_p.dat;path/N200_9020_planner_n.dat@path/N200_9020_mc_m1_p.dat;path/N200_9020_mc_m1_n.dat"
+    
+    # Old format with single file containing both populations:
+    python -m motor_controller_model.eprop_reaching_task \
+        --target-files "path/spikes_from_90_to_20.txt"
+
 Outputs are saved in sim_results/ at the repository root.
 
 Author: Renan Oliveira Shimoura
@@ -72,6 +85,125 @@ from motor_controller_model.plot_results import (
 )
 
 
+def load_spike_data(file_path):
+    """
+    Load spike data from various file formats.
+    
+    Supports:
+    1. NEST .dat format with headers (sender, time_ms columns)
+    2. Comma-separated format (neuron_id,spike_time)
+    3. Whitespace-separated format (neuron_id spike_time)
+    
+    Args:
+        file_path (str): Path to the spike data file
+        
+    Returns:
+        numpy.ndarray: 2D array with columns [neuron_id, spike_time]
+    """
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    
+    # Count lines starting with # and check for NEST format
+    skip_lines = 0
+    has_nest_header = False
+    
+    for i, line in enumerate(lines):
+        if line.startswith('#'):
+            skip_lines += 1
+        elif 'sender' in line and 'time_ms' in line:
+            # Found the NEST column header line
+            skip_lines = i + 1
+            has_nest_header = True
+            break
+        else:
+            # First non-comment line without NEST header
+            break
+    
+    # Check if it's NEST .dat format
+    if has_nest_header:
+        # NEST format - skip all comment and header lines
+        data = np.loadtxt(file_path, skiprows=skip_lines)
+        return data  # Already in [sender, time_ms] format
+    
+    # Check if comma-separated (look at first non-comment line)
+    first_data_line = lines[skip_lines] if skip_lines < len(lines) else lines[0]
+    if ',' in first_data_line:
+        data = np.loadtxt(file_path, delimiter=',', skiprows=skip_lines)
+        return data
+    
+    # Otherwise assume whitespace-separated
+    else:
+        data = np.loadtxt(file_path, skiprows=skip_lines)
+        return data
+
+
+def parse_target_files_argument(target_files_str):
+    """
+    Parse target files argument supporting paired file specification and input-output pairing.
+    
+    Format options:
+    1. Single file per trajectory: "file1.txt,file2.txt"
+    2. Paired files (pos;neg) per trajectory: "pos1.dat;neg1.dat,pos2.dat;neg2.dat"
+    3. Input-output pairing with @ separator:
+       "input_pos.dat;input_neg.dat@output_pos.dat;output_neg.dat"
+       This format pairs input spike files (planner) with output spike files (target)
+    
+    Args:
+        target_files_str (str): Comma and/or semicolon separated file paths
+        
+    Returns:
+        list: List of file specifications, where each element is either:
+              - str: single file path
+              - tuple (2 elements): (pos_file, neg_file) pair
+              - dict: {'input': (pos, neg), 'output': (pos, neg)} for input-output pairing
+    """
+    if not target_files_str:
+        return None
+    
+    trajectory_specs = []
+    for traj_spec in target_files_str.split(','):
+        traj_spec = traj_spec.strip()
+        
+        # Check for input-output pairing (@ separator)
+        if '@' in traj_spec:
+            parts = traj_spec.split('@')
+            if len(parts) != 2:
+                raise ValueError(f"Input-output pairing must have exactly 2 parts separated by '@', got: {traj_spec}")
+            
+            input_part, output_part = parts[0].strip(), parts[1].strip()
+            
+            # Parse input part
+            if ';' in input_part:
+                input_files = tuple(p.strip() for p in input_part.split(';'))
+                if len(input_files) != 2:
+                    raise ValueError(f"Input paired files must have exactly 2 files, got: {input_part}")
+            else:
+                input_files = input_part
+            
+            # Parse output part
+            if ';' in output_part:
+                output_files = tuple(p.strip() for p in output_part.split(';'))
+                if len(output_files) != 2:
+                    raise ValueError(f"Output paired files must have exactly 2 files, got: {output_part}")
+            else:
+                output_files = output_part
+            
+            trajectory_specs.append({'input': input_files, 'output': output_files})
+        
+        # Check for paired files (pos;neg)
+        elif ';' in traj_spec:
+            parts = [p.strip() for p in traj_spec.split(';')]
+            if len(parts) == 2:
+                trajectory_specs.append((parts[0], parts[1]))  # (pos, neg)
+            else:
+                raise ValueError(f"Paired file format must have exactly 2 files separated by ';', got: {traj_spec}")
+        else:
+            # Single file format
+            trajectory_specs.append(traj_spec)
+    
+    return trajectory_specs
+
+
 def run_simulation(
     n_rec=None,
     n_out=None,
@@ -102,8 +234,28 @@ def run_simulation(
         plastic_input_to_rec (bool): If True, make input-to-recurrent connections plastic.
         use_manual_rbf (bool): If True, use manual RBF implementation instead of rb_neuron.
         trajectory_files (list of str, optional): List of custom trajectory file paths to use.
-        target_files (list of str, optional): List of custom target file paths to use.
+        target_files (list, optional): List of target spike file specifications. Each element can be:
+            - str: Single file path containing both populations (split by neuron_id <= 50)
+            - tuple: (pos_file, neg_file) pair of separate files for each population
+            - dict: {'input': (input_pos, input_neg), 'output': (output_pos, output_neg)}
+                   For paired input/output spike data (planner → M1). Input spikes are fed
+                   to parrot neurons that connect to rb_neurons (only works with rb_neuron mode).
+            Supports NEST .dat format, comma-separated, or whitespace-separated formats.
+            Auto-detected based on file content.
         override_kwargs (dict): Other config overrides using dot notation (e.g., 'rbf.num_centers').
+    
+    Examples:
+        # Use paired NEST .dat files (output only):
+        run_simulation(target_files=[("pos.dat", "neg.dat")])
+        
+        # Use single file (old format):
+        run_simulation(target_files=["spikes.txt"])
+        
+        # Use paired input-output spike data:
+        run_simulation(target_files=[{
+            'input': ('planner_p.dat', 'planner_n.dat'),
+            'output': ('m1_p.dat', 'm1_n.dat')
+        }])
     """
     # %% ###########################################################################################################
     # Load configuration
@@ -154,16 +306,39 @@ def run_simulation(
     silent_period = task_cfg["silent_period"]
 
     # Define the timing structure of the experiment
+    # Build duration dictionary. By default the learning window covers only the
+    # active sequence (task.sequence). For finer control you can set
+    # `task.learning_start` and `task.learning_end` (both in ms, absolute within
+    # a single sequence) to define the time window during which eligibility
+    # traces are considered for weight updates (e.g., restrict to TIME_MOVE).
     duration = {
         "step": step_ms,
         "sequence": task_cfg["sequence"],  # Original active sequence length
         "silent_period": silent_period,  # Duration of silent period
-        "total_sequence_with_silence": task_cfg["sequence"]
-        + silent_period,  # Total sequence length
-        "learning_window": task_cfg["sequence"]
-        + silent_period,  # Learning window covers total sequence
+        "total_sequence_with_silence": task_cfg["sequence"] + silent_period,
         "extension_sim": step_ms,
     }
+
+    # Compute learning window (ms). Priority order:
+    # 1. If both `task.learning_start` and `task.learning_end` are provided,
+    #    use their difference (clamped to [0, sequence]). These are absolute
+    #    times inside one sequence (0..sequence).
+    # 2. Else if `task.learning_window` provided (legacy), use it directly.
+    # 3. Else default to the full active sequence length (no learning during
+    #    prep if prep/silent is outside the active sequence).
+    learning_start = task_cfg.get("learning_start", None)
+    learning_end = task_cfg.get("learning_end", None)
+    if learning_start is not None and learning_end is not None:
+        # Clamp values
+        ls = float(max(0.0, learning_start))
+        le = float(min(duration["sequence"], learning_end))
+        learning_window = max(0.0, le - ls)
+    elif "learning_window" in task_cfg:
+        learning_window = float(task_cfg["learning_window"])
+    else:
+        learning_window = float(duration["sequence"])  # default
+
+    duration["learning_window"] = learning_window
 
     # Number of timesteps for the total sequence including silence
     n_timesteps_per_sequence = int(
@@ -177,6 +352,10 @@ def run_simulation(
     if trajectory_files is not None and len(trajectory_files) > 0:
         n_samples = len(trajectory_files)
         duration["n_trajectories"] = n_samples  # Each file considered unique trajectory
+    elif target_files is not None and len(target_files) > 0 and isinstance(target_files[0], dict):
+        # For spike input mode (dict format), count target_files as trajectories
+        n_samples = len(target_files)
+        duration["n_trajectories"] = n_samples
     else:
         n_samples = len(trajectory_ids_to_use) * n_samples_per_trajectory_to_use
         duration["n_trajectories"] = len(trajectory_ids_to_use)
@@ -204,6 +383,10 @@ def run_simulation(
     nrn_cfg = config["neurons"]
     rbf_cfg = config["rbf"]
     num_centers = int(rbf_cfg["num_centers"])
+    
+    # Early spike-input detection to condition rb_neuron sdev
+    use_spike_input = (target_files is not None and len(target_files) > 0 and 
+                       isinstance(target_files[0], dict) and 'input' in target_files[0])
 
     if use_manual_rbf:
         # Manual RBF: Input layer is a set of Poisson generators
@@ -218,27 +401,56 @@ def run_simulation(
         # Default: Use the custom 'rb_neuron' model for RBF encoding
         print("Using 'rb_neuron' for RBF implementation.")
         
-        try:
-            nest.Install("motor_neuron_module")
-            print("motor_neuron_module installed successfully.")
-        except nest.NESTError as e:
-            print(f"NESTML motor_neuron_module not found: {e}")
-            print("Compiling NESTML neurons...")
+        # Get the path to the compiled module
+        nestml_install_dir = Path(__file__).resolve().parent / "nestml_neurons" / "nestml_install"
+        module_path = nestml_install_dir / "motor_neuron_module.so"
+        
+        # Check if module exists and try to install it
+        if not module_path.exists():
+            print("Compiled module not found. Compiling NESTML neurons...")
             from motor_controller_model.nestml_neurons.compile_nestml_neurons import compile_nestml_neurons
             compile_nestml_neurons()
             # Re-setup the kernel since compilation resets it
             nest.ResetKernel()
             nest.set(**params_setup)
-            nest.Install("motor_neuron_module")
-            print("motor_neuron_module compiled and installed successfully.")
+        
+        # Install using the full path to the module
+        try:
+            nest.Install(str(module_path))
+            print("motor_neuron_module installed successfully.")
+        except Exception as e:
+            print(f"Failed to install module from {module_path}: {e}")
+            raise
 
         # Define parameters for the rb_neuron
         params_rb_neuron = nrn_cfg["rb"]
         params_rb_neuron["simulation_steps"] = int(
             duration["sim"] / duration["step"] + 1
         )
-        params_rb_neuron["sdev"] = rbf_cfg["scale_rate"] * rbf_cfg["width"]
-        params_rb_neuron["max_peak_rate"] = rbf_cfg["scale_rate"] / duration["step"]
+        print(f"rb_neuron simulation_steps: {params_rb_neuron['simulation_steps']}, duration['sim']: {duration['sim']}")
+        
+        # sdev: context-dependent default, allow explicit override
+        # Spike-input mode: sdev should match desired_upper_hz * width (desired is in Hz/neuron)
+        # Trajectory mode: sdev should match scale_rate * width (desired is derived from angles * scale_rate)
+        if "sdev_hz" in rbf_cfg:
+            params_rb_neuron["sdev"] = float(rbf_cfg["sdev_hz"])
+        elif use_spike_input:
+            desired_upper_hz = float(rbf_cfg.get("desired_upper_hz", 160.0))
+            params_rb_neuron["sdev"] = desired_upper_hz * rbf_cfg["width"]
+        else:
+            params_rb_neuron["sdev"] = rbf_cfg["scale_rate"] * rbf_cfg["width"]
+
+        print(f"rb_neuron sdev set to: {params_rb_neuron['sdev']}")
+        
+        # max_peak_rate: maintain backward-compatible default, now context-aware
+        if use_spike_input:
+            # In spike mode, legacy default should be based on desired_upper_hz.
+            # This value is a rate in Hz.
+            legacy_max_peak = float(rbf_cfg.get("desired_upper_hz", 160.0))
+        else:
+            # In trajectory mode, it's based on scaling angles.
+            legacy_max_peak = rbf_cfg["scale_rate"] / duration["step"]
+        params_rb_neuron["max_peak_rate"] = float(rbf_cfg.get("max_peak_rate_hz", legacy_max_peak))
 
         # Create the input layer as rb_neurons
         n_rb = num_centers
@@ -247,8 +459,12 @@ def run_simulation(
         # Set the parameters for the rb_neuron
         nest.SetStatus(nrns_rb, params_rb_neuron)
 
-        # Create Poisson generators for the input layer
+        # Create input source - Poisson generator (for trajectory) or spike generators (for spike input)
+        # We'll determine which to use during data loading
         gen_poisson_in = nest.Create("inhomogeneous_poisson_generator")
+        
+        # Parrot neurons will be created later if needed for spike input mode
+        parrot_neurons_input = None
 
     # Create recurrent and readout populations
     n_rec = int(nrn_cfg["n_rec"])
@@ -434,9 +650,13 @@ def run_simulation(
                 nest.random.normal(mean=w_input, std=w_input * 0.1), min=0.0, max=1000.0
             ),
         }
-        nest.Connect(
-            gen_poisson_in, nrns_rb, params_conn_all_to_all, params_syn_input_to_rb
-        )
+        # Connect Poisson input to rb_neurons only in trajectory (rate) mode.
+        # In spike-input mode we create parrot neurons and connect those to `nrns_rb` instead,
+        # so avoid making this connection unconditionally to prevent duplicate/incorrect routing.
+        if not use_spike_input:
+            nest.Connect(
+                gen_poisson_in, nrns_rb, params_conn_all_to_all, params_syn_input_to_rb
+            )
         if plastic_input_to_rec:
             params_syn_rb_to_rec["synapse_model"] = "eprop_synapse_bsshslm_2020_exc"
             nest.Connect(
@@ -490,7 +710,18 @@ def run_simulation(
     # Load and Prepare Data
     # ~~~~~~~~~~~~~~~~~~~~~~~
     # Load the trajectory and target spike data, then resample and process it.
+    use_spike_input = (target_files is not None and len(target_files) > 0 and 
+                       isinstance(target_files[0], dict) and 'input' in target_files[0])
+    
+    if use_spike_input and use_manual_rbf:
+        raise ValueError("Spike input mode (input-output pairing) requires rb_neuron mode. "
+                        "Remove --use-manual-rbf flag.")
+    
     if trajectory_files is not None and len(trajectory_files) > 0:
+        sample_ids = list(range(n_samples))
+        training_dataset = None
+        dataset_path = None
+    elif use_spike_input:
         sample_ids = list(range(n_samples))
         training_dataset = None
         dataset_path = None
@@ -512,51 +743,144 @@ def run_simulation(
     # Number of timesteps for the active sequence
     n_timesteps_per_stimulus = int(round(task_cfg["sequence"] / duration["step"]))
     trajectories, desired_targets_list = [], {"pos": [], "neg": []}
+    input_spikes_list = {"pos": [], "neg": []}  # For spike input mode
+    
     for idx, sample_id in enumerate(sample_ids):
-        # Use custom trajectory file if provided
-        if trajectory_files is not None and len(trajectory_files) > 0:
-            traj_file = Path(trajectory_files[idx % len(trajectory_files)])
-            traj_data = np.loadtxt(traj_file)
-        else:
-            traj_num = int(training_dataset[sample_id][0][0])
-            traj_file = dataset_path.parent / f"trajectory{traj_num}.txt"
-            traj_data = np.loadtxt(traj_file)
-        orig_num_pts, orig_dur = (
-            len(traj_data),
-            len(traj_data) * 0.1,
-        )  # 0.1ms is original resolution
-        resampled_time = np.linspace(
-            0, orig_dur, n_timesteps_per_stimulus, endpoint=False
-        )
-        orig_time = np.arange(orig_num_pts) * 0.1
-        # Resample the trajectory to match the simulation time steps
-        trajectory_signal = np.interp(resampled_time, orig_time, traj_data)
-        trajectories.append(trajectory_signal)
+        # Load trajectory data (skip if using spike input)
+        if not use_spike_input:
+            # Use custom trajectory file if provided
+            if trajectory_files is not None and len(trajectory_files) > 0:
+                traj_file = Path(trajectory_files[idx % len(trajectory_files)])
+                traj_data = np.loadtxt(traj_file)
+            else:
+                traj_num = int(training_dataset[sample_id][0][0])
+                traj_file = dataset_path.parent / f"trajectory{traj_num}.txt"
+                traj_data = np.loadtxt(traj_file)
+            orig_num_pts, orig_dur = (
+                len(traj_data),
+                len(traj_data) * 0.1,
+            )  # 0.1ms is original resolution
+            resampled_time = np.linspace(
+                0, orig_dur, n_timesteps_per_stimulus, endpoint=False
+            )
+            orig_time = np.arange(orig_num_pts) * 0.1
+            # Resample the trajectory to match the simulation time steps
+            trajectory_signal = np.interp(resampled_time, orig_time, traj_data)
+            trajectories.append(trajectory_signal)
 
         # Use custom target file if provided
-        for i, key in enumerate(["pos", "neg"]):
-            if target_files is not None and idx < len(target_files):
-                # Custom file: each row neuron_id,spike_time (comma or whitespace separated)
-                arr = np.loadtxt(
-                    target_files[idx],
-                    delimiter=(
-                        "," if "," in open(target_files[idx]).readline() else None
-                    ),
-                )
-                if key == "pos":
-                    spike_times = arr[arr[:, 0] <= 50][:, 1]
+        if target_files is not None and idx < len(target_files):
+            file_spec = target_files[idx]
+            
+            # Check if this is input-output pairing (dict)
+            if isinstance(file_spec, dict):
+                # Input-output spike data pairing
+                input_spec = file_spec['input']
+                output_spec = file_spec['output']
+                
+                # Load input spikes (planner output)
+                if isinstance(input_spec, tuple):
+                    input_pos_file, input_neg_file = input_spec
+                    input_pos_data = load_spike_data(input_pos_file)
+                    input_neg_data = load_spike_data(input_neg_file)
+                    input_spikes_list["pos"].append(input_pos_data[:, 1])  # spike times
+                    input_spikes_list["neg"].append(input_neg_data[:, 1])
                 else:
-                    spike_times = arr[arr[:, 0] > 50][:, 1]
+                    raise ValueError("Input spikes must be provided as paired files (pos;neg)")
+                
+                # Load output spikes (M1 target)
+                if isinstance(output_spec, tuple):
+                    output_pos_file, output_neg_file = output_spec
+                    pos_data = load_spike_data(output_pos_file)
+                    neg_data = load_spike_data(output_neg_file)
+                else:
+                    raise ValueError("Output spikes must be provided as paired files (pos;neg)")
+                
+                # Process output spikes as targets
+                desired_targets_list["pos"].append(
+                    np.convolve(
+                        np.histogram(
+                            pos_data[:, 1],
+                            bins=n_timesteps_per_stimulus,
+                            range=(0, duration["sequence"]),
+                        )[0],
+                        np.ones(50) / 10,
+                        mode="same"
+                    )
+                )
+                desired_targets_list["neg"].append(
+                    np.convolve(
+                        np.histogram(
+                            neg_data[:, 1],
+                            bins=n_timesteps_per_stimulus,
+                            range=(0, duration["sequence"]),
+                        )[0],
+                        np.ones(50) / 10,
+                        mode="same"
+                    )
+                )
+            
+            # Check if this is a paired file specification (tuple) or single file (str)
+            elif isinstance(file_spec, tuple):
+                # Paired files: (pos_file, neg_file)
+                pos_file, neg_file = file_spec
+                pos_data = load_spike_data(pos_file)
+                neg_data = load_spike_data(neg_file)
+                
+                # Extract spike times (second column) from each file
+                desired_targets_list["pos"].append(
+                    np.convolve(
+                        np.histogram(
+                            pos_data[:, 1],
+                            bins=n_timesteps_per_stimulus,
+                            range=(0, duration["sequence"]),
+                        )[0],
+                        np.ones(20) / 10,
+                        mode="same"
+                    )
+                )
+                desired_targets_list["neg"].append(
+                    np.convolve(
+                        np.histogram(
+                            neg_data[:, 1],
+                            bins=n_timesteps_per_stimulus,
+                            range=(0, duration["sequence"]),
+                        )[0],
+                        np.ones(20) / 10,
+                        mode="same"
+                    )
+                )
             else:
+                # Single file with neuron_id threshold (old format)
+                arr = load_spike_data(file_spec)
+                
+                for i, key in enumerate(["pos", "neg"]):
+                    # Split by neuron_id: pos <= 50, neg > 50
+                    if key == "pos":
+                        spike_times = arr[arr[:, 0] <= 50][:, 1]
+                    else:
+                        spike_times = arr[arr[:, 0] > 50][:, 1]
+                    
+                    target_hist = np.histogram(
+                        spike_times,
+                        bins=n_timesteps_per_stimulus,
+                        range=(0, duration["sequence"]),
+                    )[0]
+                    desired_targets_list[key].append(
+                        np.convolve(target_hist, np.ones(20) / 10, mode="same")
+                    )
+        else:
+            # Use default dataset
+            for i, key in enumerate(["pos", "neg"]):
                 spike_times = training_dataset[sample_id][2 * i + 2]
-            target_hist = np.histogram(
-                spike_times,
-                bins=n_timesteps_per_stimulus,
-                range=(0, duration["sequence"]),
-            )[0]
-            desired_targets_list[key].append(
-                np.convolve(target_hist, np.ones(20) / 10, mode="same")
-            )
+                target_hist = np.histogram(
+                    spike_times,
+                    bins=n_timesteps_per_stimulus,
+                    range=(0, duration["sequence"]),
+                )[0]
+                desired_targets_list[key].append(
+                    np.convolve(target_hist, np.ones(20) / 10, mode="same")
+                )
 
     # Add silent period BEFORE EACH trajectory (target signals)
     if silent_period > 0:  # Only add if silent duration is positive
@@ -568,26 +892,57 @@ def run_simulation(
                     (np.zeros(silent_steps), desired_targets_list[k][i])
                 )
 
-    # Shift the trajectories input to the left to improve training performance
+    # Shift inputs/targets to account for processing delay if requested.
+    # `input_shift_ms` is intended to shift the M1 target signals forward so
+    # that learning uses targets aligned to network processing delay. For
+    # trajectory (rate) input mode we shift the input trajectories to the
+    # left (as before). For spike-input mode (paired planner->M1 files) we
+    # instead shift the processed target signals forward by inserting zeros
+    # at the beginning so their timing is advanced relative to the inputs.
     input_shift_ms = task_cfg.get("input_shift_ms", 0)
     if input_shift_ms > 0:
-        # For debugging: plot the first trajectory
-        import matplotlib.pyplot as plt
-        plt.figure(figsize=(5, 4))
-        plt.plot(resampled_time, trajectories[0], label="Original Trajectory")
-        
         n_steps = int(input_shift_ms / duration["step"])  # Number of steps to shift
-        for i in range(len(trajectories)):
-            trajectories[i] = np.roll(trajectories[i], -n_steps)
-            # set the last n_steps to the previous last value to avoid discontinuity
-            trajectories[i][-n_steps:] = trajectories[i][-n_steps - 1]
+        if not use_spike_input and len(trajectories) > 0:
+            # For debugging: plot the first trajectory (only for trajectory mode)
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(5, 4))
+            plt.plot(resampled_time, trajectories[0], label="Original Trajectory")
 
-        plt.plot(resampled_time, trajectories[0], label="Shifted Trajectory")
-        plt.xlabel("Time (ms)")
-        plt.ylabel("Trajectory Value")
-        plt.title("Trajectory Before and After Shifting")
-        plt.legend()
-        plt.show()
+            for i in range(len(trajectories)):
+                trajectories[i] = np.roll(trajectories[i], -n_steps)
+                # set the last n_steps to the previous last value to avoid discontinuity
+                trajectories[i][-n_steps:] = trajectories[i][-n_steps - 1]
+
+            plt.plot(resampled_time, trajectories[0], label="Shifted Trajectory")
+            plt.xlabel("Time (ms)")
+            plt.ylabel("Trajectory Value")
+            plt.title("Trajectory Before and After Shifting")
+            plt.legend()
+            plt.show()
+        else:
+            # Spike-input mode: shift target signals forward by `n_steps`.
+            # Each entry in desired_targets_list[k] is a per-trajectory array
+            # (length = n_timesteps_per_stimulus). Prepending zeros advances
+            # the target in time relative to the input spikes.
+            for k in desired_targets_list:
+                for i in range(len(desired_targets_list[k])):
+                    arr = desired_targets_list[k][i]
+                    if n_steps >= len(arr):
+                        # Shifting by full length -> all zeros
+                        desired_targets_list[k][i] = np.zeros_like(arr)
+                    else:
+                        shifted = np.roll(arr, n_steps)
+                        shifted[:n_steps] = 0.0
+                        desired_targets_list[k][i] = shifted
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(5, 4))
+            plt.plot(desired_targets_list["pos"][0], label="Shifted Target Signal")
+            plt.plot(desired_targets_list["neg"][0], label="Shifted Target Signal")
+            plt.xlabel("Time Steps")
+            plt.ylabel("Target Value")
+            plt.title("Target Signal After Shifting")
+            plt.legend()
+            plt.show()
 
     # %% ###########################################################################################################
     # Create Input and Output Signals
@@ -646,39 +1001,108 @@ def run_simulation(
         ]
         nest.SetStatus(gen_poisson_in, params_gen_poisson_in)
     else:  # rb_neuron input creation
-        # Insert silence BEFORE EACH trajectory so that update intervals align with sequences
-        if silent_period > 0:
-            silent_steps = int(silent_period / duration["step"])
-            zeros_block = np.zeros(silent_steps)
-            trajectories_with_silence = [
-                np.concatenate((zeros_block, tr)) for tr in trajectories
-            ]
+        if use_spike_input:
+            print("Using spike input mode with rb_neurons.")
+            
+            # Load input spike data from files
+            input_pos_data_all = []
+            input_neg_data_all = []
+            for idx in range(len(target_files)):
+                file_spec = target_files[idx]
+                if isinstance(file_spec, dict):
+                    input_spec = file_spec['input']
+                    input_pos_file, input_neg_file = input_spec
+                    pos_data = load_spike_data(input_pos_file)
+                    neg_data = load_spike_data(input_neg_file)
+                    input_pos_data_all.append(pos_data)
+                    input_neg_data_all.append(neg_data)
+            
+            # Get unique senders and create neuron mapping
+            all_senders_pos = set()
+            all_senders_neg = set()
+            for data in input_pos_data_all:
+                all_senders_pos.update(data[:, 0].astype(int))
+            for data in input_neg_data_all:
+                all_senders_neg.update(data[:, 0].astype(int))
+            
+            n_input_total = len(all_senders_pos) + len(all_senders_neg)
+            sender_to_idx = {}
+            for idx, sender in enumerate(sorted(all_senders_pos) + sorted(all_senders_neg)):
+                sender_to_idx[sender] = idx
+
+            # Collect spike times across all iterations and trajectories
+            spike_times_per_neuron = [[] for _ in range(n_input_total)]
+            n_trajectories = len(input_pos_data_all)
+            for iter_num in range(n_iter):
+                for traj_idx in range(n_trajectories):
+                    time_offset = (traj_idx + iter_num * n_trajectories) * duration["total_sequence_with_silence"]
+                    for data in [input_pos_data_all[traj_idx], input_neg_data_all[traj_idx]]:
+                        for sender_id, spike_time in data:
+                            neuron_idx = sender_to_idx[int(sender_id)]
+                            adjusted_time = spike_time + time_offset + silent_period
+                            spike_times_per_neuron[neuron_idx].append(adjusted_time)
+
+            # Now create and connect parrot neurons and spike generators
+            parrot_neurons_input = nest.Create("parrot_neuron", n_input_total)
+            spike_generators = nest.Create("spike_generator", n_input_total)
+            for idx in range(len(spike_generators)):
+                nest.SetStatus(spike_generators[idx:idx+1], {"spike_times": spike_times_per_neuron[idx]})
+            nest.Connect(spike_generators, parrot_neurons_input, "one_to_one")
+            
+            # Connect parrot neurons to rb_neurons. Use the configured input weight
+            # (same scale as `w_input`) so spikes drive rb_neurons comparably to Poisson input.
+            weight_parrot_to_rb = 1.0
+            nest.Connect(
+                parrot_neurons_input,
+                nrns_rb,
+                "all_to_all",
+                {"synapse_model": "static_synapse", "delay": duration["step"], "weight": weight_parrot_to_rb},
+            )
+            
+            # Configure rb_neuron "desired" rates for testing: fixed upper bound (Hz/neuron)
+            desired_upper_hz = float(rbf_cfg.get("desired_upper_hz", 160.0))
+            desired_rates = np.linspace(shift_min_rate, desired_upper_hz, num_centers)
+            print(f"Setting desired rates for rb_neurons (spike input): {desired_rates}")
+            for i, nrn in enumerate(nrns_rb):
+                nest.SetStatus(nrn, {"desired": desired_rates[i]})
+            
         else:
-            trajectories_with_silence = trajectories
+            # Trajectory input mode: use Poisson generator
+            # Insert silence BEFORE EACH trajectory so that update intervals align with sequences
+            if silent_period > 0:
+                silent_steps = int(silent_period / duration["step"])
+                zeros_block = np.zeros(silent_steps)
+                trajectories_with_silence = [
+                    np.concatenate((zeros_block, tr)) for tr in trajectories
+                ]
+            else:
+                trajectories_with_silence = trajectories
 
-        input_spk_rate = (
-            np.concatenate(trajectories_with_silence) * rbf_cfg["scale_rate"]
-            + shift_min_rate
-        )
+            input_spk_rate = (
+                np.concatenate(trajectories_with_silence) * rbf_cfg["scale_rate"]
+                + shift_min_rate
+            )
 
-        input_spk_rate = np.tile(input_spk_rate, n_iter)
-        in_rate_times = (
-            np.arange(len(input_spk_rate)) * duration["step"] + duration["step"]
-        )
-        nest.SetStatus(
-            gen_poisson_in, {"rate_times": in_rate_times, "rate_values": input_spk_rate}
-        )
-        # Set the desired center for each rb_neuron's receptive field
-        # Get the minimum angle from all trajectory samples
-        min_angle = np.min([np.min(traj) for traj in trajectories])
-        if min_angle > 0.5:
-            min_angle = 0.5
-        angle_centers = np.linspace(min_angle, np.pi, num_centers)
-        desired_rates = angle_centers * rbf_cfg["scale_rate"] + shift_min_rate
-        print(f"Setting desired rates for rb_neurons: {desired_rates}")
-        print(params_rb_neuron)
-        for i, nrn in enumerate(nrns_rb):
-            nest.SetStatus(nrn, {"desired": desired_rates[i]})
+            input_spk_rate = np.tile(input_spk_rate, n_iter)
+            in_rate_times = (
+                np.arange(len(input_spk_rate)) * duration["step"] + duration["step"]
+            )
+            nest.SetStatus(
+                gen_poisson_in, {"rate_times": in_rate_times, "rate_values": input_spk_rate}
+            )
+        
+        # Set the desired center for each rb_neuron's receptive field (only for trajectory mode)
+        if not use_spike_input:
+            # Get the minimum angle from all trajectory samples
+            min_angle = np.min([np.min(traj) for traj in trajectories])
+            if min_angle > 0.5:
+                min_angle = 0.5
+            angle_centers = np.linspace(min_angle, np.pi, num_centers)
+            desired_rates = angle_centers * rbf_cfg["scale_rate"] + shift_min_rate
+            print(f"Setting desired rates for rb_neurons: {desired_rates}")
+            print(params_rb_neuron)
+            for i, nrn in enumerate(nrns_rb):
+                nest.SetStatus(nrn, {"desired": desired_rates[i]})
 
     # Create target signals for the readout neurons
     concatenated_targets = {
@@ -1007,7 +1431,14 @@ if __name__ == "__main__":
         "--target-files",
         type=str,
         default=None,
-        help="Comma-separated list of custom target file paths to use instead of defaults.",
+        help=(
+            "Target spike files. Formats:\n"
+            "  Single file: 'file1.txt,file2.txt'\n"
+            "  Paired files (pos;neg): 'pos1.dat;neg1.dat,pos2.dat;neg2.dat'\n"
+            "  Input-output pairing: 'input_p.dat;input_n.dat@output_p.dat;output_n.dat'\n"
+            "    (planner spikes @ M1 target spikes, requires rb_neuron mode)\n"
+            "Supports NEST .dat format, comma-separated, or whitespace-separated."
+        ),
     )
     args = parser.parse_args()
 
@@ -1019,7 +1450,7 @@ if __name__ == "__main__":
     trajectory_files = (
         args.trajectory_files.split(",") if args.trajectory_files else None
     )
-    target_files = args.target_files.split(",") if args.target_files else None
+    target_files = parse_target_files_argument(args.target_files)
     base_kwargs = {
         "plot_results": not args.no_plot,
         "plastic_input_to_rec": args.plastic_input_to_rec,
