@@ -901,3 +901,68 @@ def tutorial_plot_loss_curve(loss, save_path=None):
     if save_path:
         plt.savefig(save_path)
     plt.show()
+
+
+def tutorial_plot_post_training_output_vs_target(output_mm, post_train_window, save_path=None):
+    """
+    Plot post-training output vs target signals for motor-controller SNN tutorial.
+
+    This figure uses a colorblind-friendly palette and best-practice line styles
+    for clear, publication-quality visualization.
+
+    Parameters
+    ----------
+    output_mm : dict
+        Dictionary with keys 'senders', 'readout_signal', 'target_signal', 'times'.
+    post_train_window : tuple
+        (start, end) time window for post-training analysis.
+    save_path : str, optional
+        If provided, saves the figure to this path.
+
+    Returns
+    -------
+    None
+        Shows the plot and saves if save_path is specified.
+
+    Example
+    -------
+    >>> tutorial_plot_post_training_output_vs_target(
+    ...     results['output_multimeter'],
+    ...     post_train_window
+    ... )
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from collections import OrderedDict
+
+    senders = output_mm['senders']
+    readout = output_mm['readout_signal']
+    target = output_mm['target_signal']
+    times = output_mm['times']
+
+    # Use colorblind-friendly palette (blue/orange) and best-practice line styles
+    unique_gids = np.unique(senders)
+    labels = {gid: 'pos' if i == 0 else 'neg' for i, gid in enumerate(unique_gids)}
+    output_colors = {gid: "#0072B2" if i == 0 else "#D55E00" for i, gid in enumerate(unique_gids)}  # blue/orange
+    target_colors = {gid: "#56B4E9" if i == 0 else "#E69F00" for i, gid in enumerate(unique_gids)}  # light blue/light orange
+
+    plt.figure(figsize=(8, 5))
+    for gid in unique_gids:
+        mask = ((senders == gid) & (times >= post_train_window[0]) & (times <= post_train_window[1]))
+        # Target: dashed, lighter color, thicker line
+        plt.plot(times[mask], target[mask], linestyle='dashed', color=target_colors[gid], alpha=0.9, label=f'{labels[gid]} target', linewidth=2.5, zorder=1)
+        # Output: solid, darker color, thinner line
+        plt.plot(times[mask], readout[mask], linestyle='solid', color=output_colors[gid], alpha=1.0, label=f'{labels[gid]} output', linewidth=1.2, zorder=2)
+
+    # Remove duplicate legend entries
+    handles, legend_labels = plt.gca().get_legend_handles_labels()
+    by_label = OrderedDict(zip(legend_labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), fontsize=10, frameon=True)
+
+    plt.xlabel('Time (ms)', fontsize=12)
+    plt.ylabel('Smoothed spike count per 1 ms bin', fontsize=12)
+    plt.title('Post-Training Output vs Target', fontsize=14)
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+    plt.show()
