@@ -2,7 +2,7 @@
   "simulation": {
     "rng_seed": 1234,
     "print_time": false,
-    "total_num_virtual_procs": 8,
+    "total_num_virtual_procs": 4,
     "step": 1.0
   },
   "task": {
@@ -12,7 +12,7 @@
     ],
     "n_samples_per_trajectory_to_use": 1,
     "gradient_batch_size": 1,
-    "n_iter": 100,
+    "n_iter": 200,
     "sequence": 1500.0,
     "silent_period": 0.0,
     "learning_start": 650.0,
@@ -58,7 +58,7 @@
       "kp": 1000,
       "base_rate": 0.0,
       "buffer_size": 10.0,
-      "simulation_steps": 300002,
+      "simulation_steps": 600002,
       "sdev": 3600.0,
       "max_peak_rate": 500.0
     }
