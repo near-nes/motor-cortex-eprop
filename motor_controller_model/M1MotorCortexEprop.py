@@ -1,14 +1,27 @@
 import numpy as np
+import structlog
 import yaml
 from interfaces.m1_base import M1SubModule
 
+_log = structlog.get_logger("M1MotorCortexEprop").bind(module="M1Eprop")
+
 
 class M1MotorCortexEprop(M1SubModule):
-    def __init__(self, config_path, weights_path, sim_steps, nest_instance):
+    def __init__(
+        self,
+        config_path,
+        weights_path,
+        sim_steps,
+        nest_instance,
+        expected_delay,
+        resolution,
+    ):
         self.nest = nest_instance
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
         self.sim_steps = sim_steps
+        self._validate_delay(expected_delay)
+
         weights = np.load(weights_path, allow_pickle=True)
         self.rec_rec_weights = weights.get("rec_rec").item()
         self.rec_out_weights = weights.get("rec_out").item()
@@ -16,16 +29,43 @@ class M1MotorCortexEprop(M1SubModule):
 
         self.n_rec = int(self.config["neurons"]["n_rec"])
         self.n_out = int(self.config["neurons"]["n_out"])
-        self.step_ms = 0.1
+        self.step_ms = resolution
         self.num_centers = int(self.config["rbf"]["num_centers"])
         self.scale_rate = float(self.config["rbf"]["scale_rate"])
 
         self.nrns_rb = None
         self.nrns_rec = None
         self.nrns_out = None
+        _log.debug("parameters loaded")
 
         self._create_network()
+        _log.debug("network created")
         self._connect_network()
+        _log.debug("network connected, EPROP initialization complete")
+
+    def _validate_delay(self, expected_delay):
+        """Validate that runtime M1 delay matches training configuration."""
+        # Check if delay is specified in the config
+        config_delay = self.config.get("m1_delay")
+
+        if config_delay is None:
+            _log.debug(
+                f"WARNING: M1 config does not specify m1_delay. Runtime expects {expected_delay}ms delay."
+            )
+            _log.debug(
+                f"         If this M1 was not trained with {expected_delay}ms delay, performance may be degraded."
+            )
+        else:
+            # Compare delays with tolerance
+            tolerance_ms = 0.1
+            if abs(expected_delay - config_delay) > tolerance_ms:
+                raise ValueError(
+                    f"M1 delay mismatch: M1 was trained with delay={config_delay}ms "
+                    f"but runtime config specifies m1_delay={expected_delay}ms. "
+                    f"Please retrain M1 with matching delay or update configuration."
+                )
+            else:
+                _log.debug(f"M1 delay validation passed: {expected_delay}ms")
 
     def _create_network(self):
         self.n_rb = self.num_centers
@@ -55,8 +95,8 @@ class M1MotorCortexEprop(M1SubModule):
         desired_rates = np.linspace(min_rate, max_rate, self.n_rb)
         # angle_centers = np.linspace(0.0, np.pi, self.n_rb)
         # desired_rates = angle_centers * self.scale_rate + min_rate
-        print("desired rates:")
-        print(desired_rates)
+        _log.debug("desired rates:")
+        _log.debug(desired_rates)
         for i, nrn in enumerate(self.nrns_rb):
             self.nest.SetStatus(nrn, {"desired": desired_rates[i]})
 
@@ -111,7 +151,7 @@ class M1MotorCortexEprop(M1SubModule):
 
         nrns_rec_ids = self.rec_out_weights["source"] + min(self.nrns_rec.tolist())
         nrns_out_ids = self.rec_out_weights["target"] + min(self.nrns_out.tolist())
-        print(f"connecting these out ids:", nrns_out_ids)
+        _log.debug(f"connecting these out ids: {nrns_out_ids}")
         self.nest.Connect(
             nrns_rec_ids,
             nrns_out_ids,

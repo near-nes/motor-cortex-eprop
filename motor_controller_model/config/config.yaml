@@ -5,6 +5,9 @@ simulation:
   total_num_virtual_procs: 4 # Number of virtual processes for NEST
   step: 1.0 # Simulation time step (ms)
 
+# M1 processing delay (ms) - motor cortex latency for trajectory processing
+m1_delay: 100.0
+
 # Task/experiment setup parameters
 task:
   samples_per_trajectory_in_dataset: 10 # Describes the structure of your dataset file (legacy)

@@ -59,6 +59,7 @@ References
 # Import libraries
 # ~~~~~~~~~~~~~~~~
 # We begin by importing all libraries required for the simulation, analysis, and visualization.
+<<<<<<< HEAD
 import nest
 import numpy as np
 import yaml
@@ -66,16 +67,32 @@ import sys
 from pathlib import Path
 import os
 import itertools
+=======
+
+import copy
+import itertools
+import os
+import sys
+from pathlib import Path
+
+import matplotlib
+import nest
+import numpy as np
+import yaml
+
+# matplotlib.use("Agg")
+
+>>>>>>> 7334a26 (fix: just getting it working for now)
 
 # Add the parent directory to the system path for dataset import
 sys.path.append(str(Path(__file__).resolve().parent.parent / "dataset_motor_training"))
 from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
 from motor_controller_model.plot_results import (
-    plot_training_error,
-    plot_spikes_and_dynamics,
-    plot_weight_time_courses,
-    plot_weight_matrices,
     plot_all_loss_curves,
+    plot_spikes_and_dynamics,
+    plot_training_error,
+    plot_weight_matrices,
+    plot_weight_time_courses,
 )
 
 
@@ -400,22 +417,23 @@ def run_simulation(
         module_path = nestml_install_dir / "motor_neuron_module.so"
         
         # Check if module exists and try to install it
-        if not module_path.exists():
-            print("Compiled module not found. Compiling NESTML neurons...")
-            from motor_controller_model.nestml_neurons.compile_nestml_neurons import compile_nestml_neurons
-            compile_nestml_neurons()
-            # Re-setup the kernel since compilation resets it
-            nest.ResetKernel()
-            nest.set(**params_setup)
+        # if not module_path.exists():
+        #     print("Compiled module not found. Compiling NESTML neurons...")
+        #     from motor_controller_model.nestml_neurons.compile_nestml_neurons import compile_nestml_neurons
+        #     compile_nestml_neurons()
+        #     # Re-setup the kernel since compilation resets it
+        #     nest.ResetKernel()
+        #     nest.set(**params_setup)
         
         # Install using the full path to the module
-        try:
-            nest.Install(str(module_path))
-            print("motor_neuron_module installed successfully.")
-        except Exception as e:
-            print(f"Failed to install module from {module_path}: {e}")
-            raise
-
+        # try:
+        #     nest.Install(str(module_path))
+        #     print("motor_neuron_module installed successfully.")
+        # except Exception as e:
+        #     print(f"Failed to install module from {module_path}: {e}")
+        #     raise
+        print("Installing shared custom_stdp_module directly...")
+        nest.Install("custom_stdp_module")
         # Define parameters for the rb_neuron
         params_rb_neuron = nrn_cfg["rb"]
         params_rb_neuron["simulation_steps"] = int(
@@ -448,7 +466,7 @@ def run_simulation(
 
         # Create the input layer as rb_neurons
         n_rb = num_centers
-        nrns_rb = nest.Create("rb_neuron", n_rb)
+        nrns_rb = nest.Create("rb_neuron_nestml", n_rb)
 
         # Set the parameters for the rb_neuron
         nest.SetStatus(nrns_rb, params_rb_neuron)
@@ -1290,7 +1308,9 @@ def run_simulation(
 
 
 def collect_scan_results(results_dir, output_csv="scan_summary.csv"):
-    import csv, json
+    import csv
+    import json
+
     import numpy as np
 
     def flatten_dict(d, parent_key="", sep="."):
