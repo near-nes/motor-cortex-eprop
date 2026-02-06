@@ -59,13 +59,7 @@ References
 # Import libraries
 # ~~~~~~~~~~~~~~~~
 # We begin by importing all libraries required for the simulation, analysis, and visualization.
-
-import matplotlib
-
-# matplotlib.use("Agg")
-
 import nest
-import copy
 import numpy as np
 import yaml
 import sys
@@ -1192,14 +1186,18 @@ def run_simulation(
     for sender in set(senders):
         idc = senders == sender
         error = (readout_signal[idc] - target_signal[idc]) ** 2
+        # Convert millisecond durations to step indices for np.add.reduceat
+        step_ms = duration["step"]
+        task_steps = int(duration["task"] / step_ms)
+        seq_with_silence_steps = int(duration["total_sequence_with_silence"] / step_ms)
         loss_list.append(
             0.5
             * np.add.reduceat(
                 error,
                 np.arange(
                     0,
-                    int(duration["task"]),
-                    int(duration["total_sequence_with_silence"]),
+                    task_steps,
+                    seq_with_silence_steps,
                 ),
             )
         )

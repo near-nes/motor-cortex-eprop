@@ -122,9 +122,6 @@ Experiment parameters are set in [`config/config.yaml`](config/config.yaml). You
 
 - `task.learning_start` and `task.learning_end` (ms): Specify an explicit learning window inside each sequence. When both are provided, the learning window used by NEST's e-prop kernel is `learning_end - learning_start` (clamped to [0, sequence]). Use this to exclude the preparation period (TIME_PREP) from eligibility accumulation and weight updates.
 - `input_shift_ms`: Aligns teacher/target signals with network processing delays. For trajectory (rate) input mode the input trajectories are shifted; for spike-input (paired planner→M1) mode the processed target signals are shifted forward by zero-padding so alignment is equivalent across input modes.
-- Diagnostic outputs (spike-input mode): When running with spike-input data (`--target-files` using the `@` pairing) and plotting enabled, the simulation now saves quick diagnostic figures in the run `result_dir`:
-  - `diag_target_vs_readout_seq0.png`: target vs readout for the first sequence
-  - `diag_spike_raster_seq0.png`: spike raster for the first sequence
 
 Note: NEST interprets `eprop_learning_window` relative to the update times defined by `eprop_update_interval` (set from the sequence length + silent period). If you want the learning window to cover an absolute interval earlier in the sequence, either align `learning_end` with the sequence end (easy option) or schedule explicit update triggers at the desired times.
 
