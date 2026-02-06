@@ -2,29 +2,34 @@
   "simulation": {
     "rng_seed": 1234,
     "print_time": false,
-    "total_num_virtual_procs": 32,
+    "total_num_virtual_procs": 4,
     "step": 1.0
   },
   "task": {
     "samples_per_trajectory_in_dataset": 10,
     "trajectory_ids_to_use": [
-      0
+      0,
+      1
     ],
     "n_samples_per_trajectory_to_use": 1,
     "gradient_batch_size": 1,
     "n_iter": 500,
-    "sequence": 650.0,
-    "silent_period": 150.0,
-    "input_shift_ms": 50
+    "sequence": 1500.0,
+    "silent_period": 0.0,
+    "input_shift_ms": 100,
+    "learning_start": 650.0,
+    "learning_end": 1500.0
   },
   "rbf": {
     "num_centers": 20,
     "scale_rate": 500.0,
-    "width": 0.05,
-    "shift_min_rate": 0.0
+    "width": 0.06,
+    "shift_min_rate": 0.0,
+    "desired_upper_hz": 60000.0,
+    "max_peak_rate_hz": 800.0
   },
   "neurons": {
-    "n_rec": 100,
+    "n_rec": 300,
     "n_out": 2,
     "exc_ratio": 0.8,
     "rec": {
@@ -51,14 +56,17 @@
       "V_m": 0.0
     },
     "rb": {
-      "kp": 1000,
+      "kp": 1000.0,
       "base_rate": 0.0,
-      "buffer_size": 50.0
+      "buffer_size": 10.0,
+      "simulation_steps": 1500002,
+      "sdev": 3600.0,
+      "max_peak_rate": 800.0
     }
   },
   "synapses": {
-    "w_input": 150.0,
-    "w_rec": 40.0,
+    "w_input": 20.0,
+    "w_rec": 20.0,
     "g": 4.0,
     "conn_bernoulli_p": 0.1,
     "average_gradient": false,
@@ -69,7 +77,7 @@
     "exc": {
       "optimizer": {
         "type": "gradient_descent",
-        "eta": 0.03,
+        "eta": 0.01,
         "Wmin": 0.0,
         "Wmax": 1000.0
       }
@@ -77,7 +85,7 @@
     "inh": {
       "optimizer": {
         "type": "gradient_descent",
-        "eta": 0.03,
+        "eta": 0.01,
         "Wmin": -1000.0,
         "Wmax": 0.0
       },
@@ -110,7 +118,7 @@
     "do_plotting": true
   },
   "model_run_settings": {
-    "plastic_input_to_rec": false,
-    "use_manual_rbf": true
+    "plastic_input_to_rec": true,
+    "use_manual_rbf": false
   }
 }

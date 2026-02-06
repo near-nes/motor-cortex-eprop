@@ -6,3 +6,5 @@ The dataset features ~10 examples for each of the 6 trajectories, and each line 
 where senders contains the IDs of spiking neurons and times the instants at which spikes are generated.
 
 Each line refers to a simulation starting with a 150 ms pause and preparation followed by 500 ms of movement execution.
+
+Note: this sample dataset follows the repository convention of a short prep/silent period followed by the active sequence. When using these files as `--target-files` in spike-input mode, you can provide paired planner→M1 files using the `@` syntax documented in `motor_controller_model/dataset_motor_training/README.md`.

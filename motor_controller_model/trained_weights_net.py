@@ -10,16 +10,18 @@ used in the main training module (eprop_reaching_task.py) for consistency.
 Key steps:
 - Loads configuration parameters from config.yaml.
 - Loads trained weights from .npz file.
-- Loads and resamples trajectory data as input.
+- Loads spike input data (same format as training).
 - Sets up NEST simulation with neuron populations and connections.
 - Applies loaded weights to recurrent and output connections.
 - Runs the simulation and plots spike raster and loaded weight matrices.
 
 Input connections:
+- Parrot neurons relay spike input from planner neurons to rb_neurons.
 - Each rb_neuron is connected to a group of excitatory and inhibitory recurrent neurons,
   matching the grouping logic in eprop_reaching_task.py.
 
-This module is intended for post-training evaluation and visualization.
+This module is intended for post-training evaluation and visualization, using the same
+spike input format as the training procedure.
 
 Run as a module:
     python -m motor_controller_model.trained_weights_net
@@ -34,7 +36,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from pathlib import Path
 import sys
-import yaml
+import json
 
 mpl.use("Agg")
 
@@ -42,12 +44,12 @@ mpl.use("Agg")
 from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
 
 # --------------------------------------------------------------------------------------
-# Load configuration parameters from config.yaml
+# Load configuration parameters from tutorial_results/config.json
 # --------------------------------------------------------------------------------------
 
-config_path = Path(__file__).resolve().parent / "config" / "config.yaml"
+config_path = Path(__file__).resolve().parent.parent / "tutorial_results" / "config.json"
 with open(config_path, "r") as f:
-    config = yaml.safe_load(f)
+    config = json.load(f)
 
 # Use same variable names as eprop-reaching-task.py for consistency
 n_rec = int(config["neurons"]["n_rec"])
@@ -72,9 +74,8 @@ duration = duration_task + step_ms
 # --------------------------------------------------------------------------------------
 
 weights_path = (
-    Path(__file__).resolve().parent
-    / "../sim_results"
-    / "default_plastic_False_manualRBF_False"
+    Path(__file__).resolve().parent.parent
+    / "tutorial_results"
     / "trained_weights.npz"
 )
 if not weights_path.exists():
@@ -89,43 +90,120 @@ if rec_rec_weights is None or rec_out_weights is None:
     raise KeyError("Missing 'rec_rec' or 'rec_out' arrays in trained_weights.npz")
 
 # --------------------------------------------------------------------------------------
-# Load and resample trajectory data
+# Load spike input data (same format as training)
 # --------------------------------------------------------------------------------------
 
-dataset_path = (
-    Path(__file__).resolve().parent.parent
+def load_spike_data(file_path):
+    """
+    Load spike data from various file formats.
+    
+    Supports:
+    1. NEST .dat format with headers (sender, time_ms columns)
+    2. Comma-separated format (neuron_id,spike_time)
+    3. Whitespace-separated format (neuron_id spike_time)
+    
+    Args:
+        file_path (str): Path to the spike data file
+        
+    Returns:
+        numpy.ndarray: 2D array with columns [neuron_id, spike_time]
+    """
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    
+    # Count lines starting with # and check for NEST format
+    skip_lines = 0
+    has_nest_header = False
+    
+    for i, line in enumerate(lines):
+        if line.startswith('#'):
+            skip_lines += 1
+        elif 'sender' in line and 'time_ms' in line:
+            # Found the NEST column header line
+            skip_lines = i + 1
+            has_nest_header = True
+            break
+        else:
+            # First non-comment line without NEST header
+            break
+    
+    # Check if it's NEST .dat format
+    if has_nest_header:
+        # NEST format - skip all comment and header lines
+        data = np.loadtxt(file_path, skiprows=skip_lines)
+        return data  # Already in [sender, time_ms] format
+    
+    # Check if comma-separated (look at first non-comment line)
+    first_data_line = lines[skip_lines] if skip_lines < len(lines) else lines[0]
+    if ',' in first_data_line:
+        data = np.loadtxt(file_path, delimiter=',', skiprows=skip_lines)
+        return data
+    
+    # Otherwise assume whitespace-separated
+    else:
+        data = np.loadtxt(file_path, skiprows=skip_lines)
+        return data
+
+# Define spike input file paths (matching the tutorial notebook)
+base_data_dir = (
+    Path(__file__).resolve().parent
     / "dataset_motor_training"
-    / "sample_data"
-    / "dataset_spikes.gdf"
+    / "input_ouput_data"
 )
-training_dataset = load_data_file(str(dataset_path))
-sample_ids = [
-    tid * config["task"]["samples_per_trajectory_in_dataset"] + j
-    for tid in trajectory_ids_to_use
-    for j in range(n_samples_per_trajectory_to_use)
+
+# Trajectory 1: 9020 (90° → 20°)
+input_9020_pos = str(base_data_dir / 'N200_9020_planner_p.dat')
+input_9020_neg = str(base_data_dir / 'N200_9020_planner_n.dat')
+
+# Trajectory 2: 90140 (90° → 140°)
+input_90140_pos = str(base_data_dir / 'N200_90140_planner_p.dat')
+input_90140_neg = str(base_data_dir / 'N200_90140_planner_n.dat')
+
+# List of input spike file pairs (pos, neg)
+input_spike_files = [
+    (input_9020_pos, input_9020_neg),
+    (input_90140_pos, input_90140_neg),
 ]
-assert len(sample_ids) == n_samples
 
-# Resample each trajectory to match simulation time steps
-trajectories = []
-for idx, sample_id in enumerate(sample_ids):
-    traj_num = int(training_dataset[sample_id][0][0])
-    traj_file = dataset_path.parent / f"trajectory{traj_num}.txt"
-    traj_data = np.loadtxt(traj_file)
-    orig_num_pts, orig_dur = len(traj_data), len(traj_data) * 0.1  # 0.1ms resolution
-    resampled_time = np.linspace(0, orig_dur, int(sequence / step_ms), endpoint=False)
-    orig_time = np.arange(orig_num_pts) * 0.1
-    trajectory_signal = np.interp(resampled_time, orig_time, traj_data)
-    # Prepend zeros for silent period
-    if silent_period > 0:
-        silent_steps = int(silent_period / step_ms)
-        trajectory_signal = np.concatenate((np.zeros(silent_steps), trajectory_signal))
-    trajectories.append(trajectory_signal)
+# Load and organize spike input data (matching eprop_reaching_task.py approach)
+input_pos_data_all = []
+input_neg_data_all = []
 
-# Concatenate and tile for all iterations
-input_spk_rate = np.concatenate(trajectories) * scale_rate
-input_spk_rate = np.tile(input_spk_rate, n_iter)
-in_rate_times = np.arange(len(input_spk_rate)) * step_ms + step_ms
+for input_pos_file, input_neg_file in input_spike_files:
+    spikes_pos = load_spike_data(input_pos_file)
+    spikes_neg = load_spike_data(input_neg_file)
+    input_pos_data_all.append(spikes_pos)
+    input_neg_data_all.append(spikes_neg)
+
+# Get unique senders and create neuron mapping (same as training code)
+all_senders_pos = set()
+all_senders_neg = set()
+for data in input_pos_data_all:
+    all_senders_pos.update(data[:, 0].astype(int))
+for data in input_neg_data_all:
+    all_senders_neg.update(data[:, 0].astype(int))
+
+n_input_neurons = len(all_senders_pos) + len(all_senders_neg)
+sender_to_idx = {}
+for idx, sender in enumerate(sorted(all_senders_pos) + sorted(all_senders_neg)):
+    sender_to_idx[sender] = idx
+
+# Collect spike times across all trajectories with time offsets (same as training)
+spike_times_per_neuron = [[] for _ in range(n_input_neurons)]
+n_trajectories = len(input_pos_data_all)
+
+for iter_num in range(n_iter):
+    for traj_idx in range(n_trajectories):
+        time_offset = (traj_idx + iter_num * n_trajectories) * n_timesteps_per_sequence * step_ms
+        for data in [input_pos_data_all[traj_idx], input_neg_data_all[traj_idx]]:
+            for sender_id, spike_time in data:
+                neuron_idx = sender_to_idx[int(sender_id)]
+                adjusted_time = spike_time + time_offset + silent_period
+                spike_times_per_neuron[neuron_idx].append(adjusted_time)
+
+# Compute total duration for both trajectories
+duration = n_trajectories * n_timesteps_per_sequence * step_ms + step_ms
+print(f"Total simulation duration: {duration} ms ({n_trajectories} trajectories)")
 
 # --------------------------------------------------------------------------------------
 # Set up NEST simulation
@@ -136,22 +214,44 @@ nest.SetKernelStatus({"resolution": step_ms, "rng_seed": 1234})
 
 
 # ----------------------------------------------------------------------------------------
-# Create neuron populations and input generator
+# Create neuron populations and input generators
 # ----------------------------------------------------------------------------------------
 
-# Create neuron populations and input generator
-nest.Install("motor_neuron_module")
+# Load and install the custom rb_neuron module
+nestml_install_dir = Path(__file__).resolve().parent / "nestml_neurons" / "nestml_install"
+module_path = nestml_install_dir / "motor_neuron_module.so"
+
+# Check if module exists and try to install it
+if not module_path.exists():
+    print("Compiled module not found. Compiling NESTML neurons...")
+    from motor_controller_model.nestml_neurons.compile_nestml_neurons import compile_nestml_neurons
+    compile_nestml_neurons()
+    # Re-setup the kernel since compilation resets it
+    nest.ResetKernel()
+    nest.SetKernelStatus({"resolution": step_ms, "rng_seed": 1234})
+
+# Install using the full path to the module
+try:
+    nest.Install(str(module_path))
+    print("motor_neuron_module installed successfully.")
+except Exception as e:
+    print(f"Warning: Could not install motor_neuron_module: {e}")
+    print("Attempting to use installed module...")
+    nest.Install("motor_neuron_module")
+
+# Create neuron populations
 n_rb = num_centers
 nrns_rb = nest.Create("rb_neuron", n_rb)
+
+# Set up rb_neuron parameters
 params_rb_neuron = config["neurons"]["rb"].copy()
 params_rb_neuron["simulation_steps"] = int(duration / step_ms + 1)
-params_rb_neuron["sdev"] = scale_rate * config["rbf"]["width"]
-params_rb_neuron["max_peak_rate"] = scale_rate / step_ms
 nest.SetStatus(nrns_rb, params_rb_neuron)
 
-# Set the desired center for each rb_neuron's receptive field
-angle_centers = np.linspace(0.0, np.pi, n_rb)
-desired_rates = angle_centers * scale_rate
+# Set the desired rates for each rb_neuron (spike-input mode)
+shift_min_rate = config["rbf"]["shift_min_rate"]
+desired_upper_hz = float(config["rbf"].get("desired_upper_hz"))
+desired_rates = np.linspace(shift_min_rate, desired_upper_hz, n_rb)
 for i, nrn in enumerate(nrns_rb):
     nest.SetStatus(nrn, {"desired": desired_rates[i]})
 
@@ -159,29 +259,39 @@ for i, nrn in enumerate(nrns_rb):
 params_nrn_rec = config["neurons"]["rec"]
 params_nrn_out = config["neurons"]["out"]
 
-gen_poisson_in = nest.Create("inhomogeneous_poisson_generator")
 nrns_rec = nest.Create("eprop_iaf_bsshslm_2020", n_rec, params_nrn_rec)
 nrns_out = nest.Create("eprop_readout_bsshslm_2020", n_out, params_nrn_out)
 spike_recorder = nest.Create("spike_recorder")
-spike_recorder_rb = nest.Create("spike_recorder")  # Recorder for input neurons
+spike_recorder_rb = nest.Create("spike_recorder")  # Recorder for rb_neurons
+spike_recorder_input = nest.Create("spike_recorder")  # Recorder for input parrot neurons
 
-# Set input rates for Poisson generator
-nest.SetStatus(
-    gen_poisson_in, {"rate_times": in_rate_times, "rate_values": input_spk_rate}
-)
+# Create parrot neurons to relay input spikes (same count as in spike data)
+nrns_parrot_input = nest.Create("parrot_neuron", n_input_neurons)
+
+# Create spike generators for input spikes
+gens_input_spikes = nest.Create("spike_generator", n_input_neurons)
+
+# Set spike times for each input neuron (matching training approach)
+# Sort spike times for each neuron to ensure non-descending order
+for idx in range(len(gens_input_spikes)):
+    sorted_spike_times = sorted(spike_times_per_neuron[idx])
+    nest.SetStatus(gens_input_spikes[idx:idx+1], {"spike_times": sorted_spike_times})
 
 # --------------------------------------------------------------------------------------
-# Connect input to recurrent neurons via rb_neuron
+# Connect input to recurrent neurons via rb_neuron (using parrot neurons)
 # --------------------------------------------------------------------------------------
 
 params_conn_all_to_all = {"rule": "all_to_all", "allow_autapses": False}
 params_conn_one_to_one = {"rule": "one_to_one", "allow_autapses": False}
 params_syn_static = {"synapse_model": "static_synapse", "weight": 1.0, "delay": step_ms}
 
-# Poisson generator to rb_neuron
-nest.Connect(gen_poisson_in, nrns_rb, params_conn_all_to_all, params_syn_static)
+# Spike generators to parrot neurons (one-to-one)
+nest.Connect(gens_input_spikes, nrns_parrot_input, params_conn_one_to_one, params_syn_static)
 
-# Get source and target neuron IDs 
+# Parrot neurons to rb_neurons (all-to-all connection)
+nest.Connect(nrns_parrot_input, nrns_rb, params_conn_all_to_all, params_syn_static)
+
+# Get source and target neuron IDs for rb_rec connections
 nrns_rb_ids = rb_rec_weights["source"] + min(nrns_rb.tolist())
 nrns_rec_ids = rb_rec_weights["target"] + min(nrns_rec.tolist())
 
@@ -234,8 +344,11 @@ nest.Connect(
 
 nest.Connect(nrns_rec, spike_recorder)
 nest.Connect(nrns_rb, spike_recorder_rb)
+nest.Connect(nrns_parrot_input, spike_recorder_input)
 
+print(f"Simulating for {duration} ms...")
 nest.Simulate(duration)
+print("Simulation complete.")
 
 # --------------------------------------------------------------------------------------
 # Extract weights from the network for comparison
@@ -261,21 +374,57 @@ rb_rec_weights_extracted = get_weights(nrns_rb, nrns_rec)  # input to recurrent
 # Plot results: spike raster and loaded weights vs extracted weights
 # --------------------------------------------------------------------------------------
 
+# Create output directory if it doesn't exist
+output_dir = Path(__file__).resolve().parent.parent / "sim_results"
+output_dir.mkdir(parents=True, exist_ok=True)
+
 events = spike_recorder.get("events")
 events_rb = spike_recorder_rb.get("events")
+events_input = spike_recorder_input.get("events")
+
+# Calculate PSTH for excitatory recurrent neurons only
+exc_ratio = config["neurons"]["exc_ratio"]
+n_rec_exc = int(n_rec * exc_ratio)
+exc_neuron_ids = nrns_rec[:n_rec_exc].tolist()
+
+# Filter spikes to only excitatory neurons
+exc_spike_mask = np.isin(events["senders"], exc_neuron_ids)
+exc_spike_times = events["times"][exc_spike_mask]
+
+bin_size_ms = 10.0  # 10 ms bins
+bins = np.arange(0, duration + bin_size_ms, bin_size_ms)
+spike_counts, _ = np.histogram(exc_spike_times, bins=bins)
+firing_rate = spike_counts / (n_rec_exc * bin_size_ms / 1000.0)  # Convert to Hz
+bin_centers = (bins[:-1] + bins[1:]) / 2
 
 fig_raster, axs_raster = plt.subplots(
-    2, 1, figsize=(8, 8), gridspec_kw={"height_ratios": [1, 5]}, sharex=True
+    4, 1, figsize=(10, 12), gridspec_kw={"height_ratios": [1, 1, 4, 2]}, sharex=True
 )
-axs_raster[0].scatter(events_rb["times"], events_rb["senders"], s=2, color="#1f77b4")
-axs_raster[0].set_ylabel("Input Neuron ID")
-axs_raster[0].set_title("Raster Plot of Input (rb_neuron) Neurons")
-axs_raster[1].scatter(events["times"], events["senders"], s=2)
-axs_raster[1].set_xlabel("Time (ms)")
-axs_raster[1].set_ylabel("Recurrent Neuron ID")
-axs_raster[1].set_title("Raster Plot of Recurrent Neurons")
+axs_raster[0].scatter(events_input["times"], events_input["senders"], s=2, color="#2ca02c", alpha=0.7)
+axs_raster[0].set_ylabel("Input Neuron ID", fontsize=10)
+axs_raster[0].set_title("Raster Plot of Input (Parrot) Neurons", fontsize=11)
+axs_raster[0].grid(True, linestyle='--', alpha=0.3)
+
+axs_raster[1].scatter(events_rb["times"], events_rb["senders"], s=2, color="#1f77b4", alpha=0.7)
+axs_raster[1].set_ylabel("rb_neuron ID", fontsize=10)
+axs_raster[1].set_title("Raster Plot of RBF Neurons", fontsize=11)
+axs_raster[1].grid(True, linestyle='--', alpha=0.3)
+
+axs_raster[2].scatter(events["times"], events["senders"], s=2, color='black', alpha=0.7)
+axs_raster[2].set_ylabel("Recurrent Neuron ID", fontsize=10)
+axs_raster[2].set_title("Raster Plot of Recurrent Neurons", fontsize=11)
+axs_raster[2].grid(True, linestyle='--', alpha=0.3)
+
+axs_raster[3].plot(bin_centers, firing_rate, color="black", linewidth=1.5, alpha=1.0)
+axs_raster[3].fill_between(bin_centers, 0, firing_rate, color="black", alpha=0.2)
+axs_raster[3].set_xlabel("Time (ms)", fontsize=11)
+axs_raster[3].set_ylabel("Firing Rate (Hz)", fontsize=10)
+axs_raster[3].set_title("Population Firing Rate (PSTH) - Excitatory Neurons", fontsize=11)
+axs_raster[3].grid(True, linestyle='--', alpha=0.3)
+
 plt.tight_layout()
-plt.savefig("../sim_results/trained_weights_raster_plot.png")
+plt.savefig(output_dir / "trained_weights_raster_plot.png", dpi=300)
+print("Saved raster plot to sim_results/trained_weights_raster_plot.png")
 
 # Plot loaded weights and extracted weights for verification
 colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
@@ -334,7 +483,8 @@ axs[1, 1].set_xlabel("Presynaptic neuron")
 axs[1, 1].set_ylabel("Postsynaptic neuron")
 plt.colorbar(pc3, ax=axs[1, 1])
 plt.tight_layout()
-plt.savefig("../sim_results/trained_weights_comparison.png")
+plt.savefig(output_dir / "trained_weights_comparison.png")
+print("Saved weight comparison plot to sim_results/trained_weights_comparison.png")
 
 # --- Plot input-to-recurrent weights (rb_neuron to rec) ---
 
@@ -360,4 +510,6 @@ axs_rbrec[1].set_xlabel("Input neuron (rb_neuron)")
 axs_rbrec[1].set_ylabel("Recurrent neuron")
 plt.colorbar(pc_rb_extracted, ax=axs_rbrec[1])
 plt.tight_layout()
-plt.savefig("../sim_results/trained_weights_rb_rec_comparison.png")
+plt.savefig(output_dir / "trained_weights_rb_rec_comparison.png")
+print("Saved input-to-recurrent weight comparison plot to sim_results/trained_weights_rb_rec_comparison.png")
+print("All plots complete.")
