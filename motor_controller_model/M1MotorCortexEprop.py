@@ -82,19 +82,18 @@ class M1MotorCortexEprop(M1SubModule):
         # params_rb_neuron = self.config["neurons"]["rb"].copy()
         params_rb_neuron = {
             **self.config["neurons"]["rb"].copy(),
-            "sdev": 10,
-            "max_peak_rate": 5000,
+            "sdev": 3600.0,
+            "max_peak_rate": 800.0,
             "simulation_steps": self.sim_steps,
-            "base_rate": 0,
         }
         # params_rb_neuron["sdev"] = self.scale_rate * self.config["rbf"]["width"]
         # params_rb_neuron["max_peak_rate"] = self.scale_rate / self.step_ms
         self.nest.SetStatus(self.nrns_rb, params_rb_neuron)
-        min_rate = 0
-        max_rate = 170
-        desired_rates = np.linspace(min_rate, max_rate, self.n_rb)
-        # angle_centers = np.linspace(0.0, np.pi, self.n_rb)
-        # desired_rates = angle_centers * self.scale_rate + min_rate
+        desired_rates = np.linspace(
+            self.config["rbf"]["shift_min_rate"],
+            float(self.config["rbf"]["desired_upper_hz"]),
+            self.n_rb,
+        )
         _log.debug("desired rates:")
         _log.debug(desired_rates)
         for i, nrn in enumerate(self.nrns_rb):
