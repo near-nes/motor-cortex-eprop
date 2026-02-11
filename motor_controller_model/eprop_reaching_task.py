@@ -55,34 +55,21 @@ References
        (in preparation)
 """
 
+import itertools
+import os
+import sys
+from pathlib import Path
+
 # %% ###########################################################################################################
 # Import libraries
 # ~~~~~~~~~~~~~~~~
 # We begin by importing all libraries required for the simulation, analysis, and visualization.
-<<<<<<< HEAD
-import nest
-import numpy as np
-import yaml
-import sys
-from pathlib import Path
-import os
-import itertools
-=======
-
-import copy
-import itertools
-import os
-import sys
-from pathlib import Path
-
-import matplotlib
 import nest
 import numpy as np
 import yaml
 
 # matplotlib.use("Agg")
 
->>>>>>> 7334a26 (fix: just getting it working for now)
 
 # Add the parent directory to the system path for dataset import
 sys.path.append(str(Path(__file__).resolve().parent.parent / "dataset_motor_training"))

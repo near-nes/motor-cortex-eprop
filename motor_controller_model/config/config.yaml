@@ -1,16 +1,9 @@
 # Simulation/environment parameters
 simulation:
-<<<<<<< HEAD
   rng_seed: 1234 # Random seed for reproducibility
   print_time: false # Print simulation progress (true/false)
   total_num_virtual_procs: 4 # Number of virtual processes for NEST
   step: 1.0 # Simulation time step (ms)
-=======
-  rng_seed: 1234  # Random seed for reproducibility
-  print_time: false  # Print simulation progress (true/false)
-  total_num_virtual_procs: 4  # Number of virtual processes for NEST
-  step: 1.0  # Simulation time step (ms)
->>>>>>> 936d6d4 (fix: update to renan's latest config)
 
 # Task/experiment setup parameters
 task:
@@ -19,17 +12,10 @@ task:
   n_samples_per_trajectory_to_use: 1 # Describes how many samples to take from the start of each of those trajectories (legacy)
   # NOTE: Default dataset is now stage1 trajectories (90_to_140 and 90_to_20)
   gradient_batch_size: 1 # Batch size for gradient computation
-<<<<<<< HEAD
   n_iter: 500 # Number of training iterations
   sequence: 1500.0 # Sequence length (ms)
   silent_period: 0.0 # Silent period before receiving the trajectory (ms) (legacy)
   input_shift_ms: 100 # Temporal delay to shift M1 target spikes forward (ms)
-=======
-  n_iter: 500  # Number of training iterations
-  sequence: 1500.0  # Sequence length (ms)
-  silent_period: 0.0  # Silent period before receiving the trajectory (ms) (legacy)
-  input_shift_ms: 100  # Temporal delay to shift M1 target spikes forward (ms)
->>>>>>> 936d6d4 (fix: update to renan's latest config)
   # Optional: define the learning period within each sequence (absolute ms)
   # `learning_start`: start time (ms) inside one sequence where learning becomes active
   # `learning_end`: end time (ms) inside one sequence where learning stops
@@ -40,7 +26,6 @@ task:
 
 # RBF encoding parameters
 rbf:
-<<<<<<< HEAD
   num_centers: 20 # Number of RBF centers for input encoding
   scale_rate: 500.0 # RBF output scaling factor (Hz)
   width: 0.06 # RBF width in rad (standard deviation)
@@ -53,20 +38,6 @@ neurons:
   n_rec: 300 # Number of recurrent neurons
   n_out: 2 # Number of output neurons
   exc_ratio: 0.8 # Fraction of excitatory neurons in recurrent population
-=======
-  num_centers: 20  # Number of RBF centers for input encoding
-  scale_rate: 500.0  # RBF output scaling factor (Hz)
-  width: 0.06  # RBF width in rad (standard deviation)
-  shift_min_rate: 0.0  # Minimum rate shift for RBF output (Hz)
-  desired_upper_hz: 60000.0  # Desired upper firing rate for spike-input mode (Hz)
-  max_peak_rate_hz: 800.0  # Maximum peak firing rate for rb_neuron (Hz)
-
-# Neuron parameters
-neurons:
-  n_rec: 300  # Number of recurrent neurons
-  n_out: 2  # Number of output neurons
-  exc_ratio: 0.8  # Fraction of excitatory neurons in recurrent population
->>>>>>> 936d6d4 (fix: update to renan's latest config)
   rec:
     C_m: 250.0 # Membrane capacitance (pF)
     c_reg: 300.0 # Regularization constant
@@ -89,7 +60,6 @@ neurons:
     tau_m: 20.0 # Membrane time constant (ms)
     V_m: 0.0 # Initial membrane potential (mV)
   rb:
-<<<<<<< HEAD
     kp: 1000.0 # Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)
     base_rate: 0.0 # Base firing rate in Hz
     buffer_size: 10.0 # Size of the sliding window in ms
@@ -105,23 +75,6 @@ synapses:
   feedback_delay: 1.0 # Delay for feedback synapses (ms)
   rate_target_delay: 1.0 # Delay for rate target synapses (ms)
   receptor_type: 2 # Receptor type for rate target synapses
-=======
-    kp: 1000.0         # Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)
-    base_rate: 0.0     # Base firing rate in Hz
-    buffer_size: 10.0  # Size of the sliding window in ms
-
-# Synapse parameters
-synapses:
-  w_input: 20.0  # Default synaptic weight (pA)
-  w_rec: 20.0  # Recurrent synaptic weight (pA)
-  g: 4.0  # Inhibitory/excitatory weight ratio
-  conn_bernoulli_p: 0.1  # Connection probability for recurrent connections
-  average_gradient: false  # Average gradient across batch (true/false)
-  static_delay: 1.0  # Delay for static synapses (ms)
-  feedback_delay: 1.0  # Delay for feedback synapses (ms)
-  rate_target_delay: 1.0  # Delay for rate target synapses (ms)
-  receptor_type: 2  # Receptor type for rate target synapses
->>>>>>> 936d6d4 (fix: update to renan's latest config)
 
   exc:
     optimizer:
