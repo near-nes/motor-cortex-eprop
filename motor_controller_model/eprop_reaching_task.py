@@ -74,6 +74,7 @@ import yaml
 # Add the parent directory to the system path for dataset import
 sys.path.append(str(Path(__file__).resolve().parent.parent / "dataset_motor_training"))
 from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
+from motor_controller_model.config_schema import MotorControllerConfig
 from motor_controller_model.plot_results import (
     plot_all_loss_curves,
     plot_spikes_and_dynamics,
@@ -258,39 +259,40 @@ def run_simulation(
     # %% ###########################################################################################################
     # Load configuration
     # ~~~~~~~~~~~~~~~~~~~~
-    # Load the base configuration from the YAML file and override any parameters
-    # specified through function arguments or keyword arguments.
+    # Load the base configuration from the YAML file with Pydantic validation
+    # and override any parameters specified through function arguments or keyword arguments.
     config_path = (
         Path(config_path_override)
         if config_path_override
         else Path(__file__).resolve().parent / "config" / "config.yaml"
     )
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
+    
+    # Load config using Pydantic for validation
+    config_model = MotorControllerConfig.from_yaml(str(config_path))
+    
     # Override config with function arguments
     if n_rec is not None:
-        config["neurons"]["n_rec"] = n_rec
+        config_model.neurons.n_rec = n_rec
     if n_out is not None:
-        config["neurons"]["n_out"] = n_out
+        config_model.neurons.n_out = n_out
     if exc_ratio is not None:
-        config["neurons"]["exc_ratio"] = exc_ratio
+        config_model.neurons.exc_ratio = exc_ratio
     # Map user-friendly 'learning_rate' to NEST's 'eta'
     if learning_rate_exc is not None:
-        config["synapses"]["exc"]["optimizer"]["eta"] = learning_rate_exc
+        config_model.synapses.exc.optimizer.eta = learning_rate_exc
     if learning_rate_inh is not None:
-        config["synapses"]["inh"]["optimizer"]["eta"] = learning_rate_inh
-    # Remove any accidental learning_rate keys to avoid confusion
-    config["synapses"]["exc"]["optimizer"].pop("learning_rate", None)
-    config["synapses"]["inh"]["optimizer"].pop("learning_rate", None)
-
+        config_model.synapses.inh.optimizer.eta = learning_rate_inh
+    
     # Apply any other keyword argument overrides using dot notation
     for k, v in override_kwargs.items():
         keys = k.split(".")
-        d = config
+        obj = config_model
         for key in keys[:-1]:
-            d = d[key]
-        d[keys[-1]] = v
+            obj = getattr(obj, key)
+        setattr(obj, keys[-1], v)
+    
+    # Convert to dict for backward compatibility with existing code
+    config = config_model.to_dict()
 
     # %% ###########################################################################################################
     # Setup Simulation
@@ -1257,32 +1259,15 @@ def run_simulation(
         )
 
     if result_dir:
-        import json
-
-        def make_json_serializable(obj):
-            if isinstance(obj, dict):
-                return {k: make_json_serializable(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [make_json_serializable(i) for i in obj]
-            if isinstance(obj, Path):
-                return str(obj)
-            if isinstance(obj, (np.ndarray, np.generic)):
-                return obj.tolist()
-            return obj
-
-        config_serializable = make_json_serializable(config)
-        config_serializable["model_run_settings"] = {
-            "plastic_input_to_rec": plastic_input_to_rec,
-            "use_manual_rbf": use_manual_rbf,
-        }
+        # Save config as YAML using Pydantic
+        config_model.to_yaml(os.path.join(out_dir, "config.yaml"))
+        
         np.savez(
             os.path.join(out_dir, "results.npz"),
             loss=loss,
             readout_signal=readout_signal,
             target_signal=target_signal,
         )
-        with open(os.path.join(out_dir, "config.json"), "w") as f:
-            json.dump(config_serializable, f, indent=2)
     print(f"Results saved to {out_dir}")
 
     return {
@@ -1315,11 +1300,14 @@ def collect_scan_results(results_dir, output_csv="scan_summary.csv"):
     param_keys = set()
     temp_rows = []
     for folder in os.listdir(results_dir):
-        config_path = os.path.join(results_dir, folder, "config.json")
+        config_path = os.path.join(results_dir, folder, "config.yaml")
         results_path = os.path.join(results_dir, folder, "results.npz")
+        
         if os.path.exists(config_path) and os.path.exists(results_path):
-            with open(config_path) as f:
-                config = json.load(f)
+            # Load config using Pydantic
+            config_obj = MotorControllerConfig.from_yaml(config_path)
+            config = config_obj.to_dict()
+            
             loss = np.load(results_path)["loss"]
             if len(loss) > 0:
                 n_last = min(10, len(loss))

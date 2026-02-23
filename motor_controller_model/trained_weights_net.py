@@ -38,18 +38,25 @@ from pathlib import Path
 import sys
 import json
 
+from motor_controller_model.config_schema import MotorControllerConfig
+
 mpl.use("Agg")
 
 # Add dataset path for imports
 from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
 
 # --------------------------------------------------------------------------------------
-# Load configuration parameters from tutorial_results/config.json
+# Load configuration parameters from tutorial_results/config.yaml
 # --------------------------------------------------------------------------------------
 
-config_path = Path(__file__).resolve().parent.parent / "tutorial_results" / "config.json"
-with open(config_path, "r") as f:
-    config = json.load(f)
+results_dir = Path(__file__).resolve().parent.parent / "tutorial_results"
+config_path = results_dir / "config.yaml"
+
+if config_path.exists():
+    config_obj = MotorControllerConfig.from_yaml(config_path)
+    config = config_obj.to_dict()
+else:
+    raise FileNotFoundError(f"Config file not found at {config_path}")
 
 # Use same variable names as eprop-reaching-task.py for consistency
 n_rec = int(config["neurons"]["n_rec"])
