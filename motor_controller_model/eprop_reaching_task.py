@@ -291,6 +291,9 @@ def run_simulation(
             obj = getattr(obj, key)
         setattr(obj, keys[-1], v)
     
+    # Update plotting config based on plot_results parameter
+    config_model.plotting.do_plotting = plot_results
+    
     # Convert to dict for backward compatibility with existing code
     config = config_model.to_dict()
 
@@ -415,19 +418,20 @@ def run_simulation(
         #     nest.set(**params_setup)
         
         # Install using the full path to the module
-        # try:
-        #     nest.Install(str(module_path))
-        #     print("motor_neuron_module installed successfully.")
-        # except Exception as e:
-        #     print(f"Failed to install module from {module_path}: {e}")
-        #     raise
-        print("Installing shared custom_stdp_module directly...")
-        nest.Install("custom_stdp_module")
-        # Define parameters for the rb_neuron
-        params_rb_neuron = nrn_cfg["rb"]
-        params_rb_neuron["simulation_steps"] = int(
-            duration["sim"] / duration["step"] + 1
-        )
+        try:
+            nest.Install(str(module_path))
+            print("motor_neuron_module installed successfully.")
+        except Exception as e:
+            print(f"Failed to install module from {module_path}: {e}")
+            raise
+
+        # Define parameters for the rb_neuron (all now in rbf_cfg)
+        params_rb_neuron = {
+            "kp": rbf_cfg["kp"],
+            "base_rate": rbf_cfg["base_rate"],
+            "buffer_size": rbf_cfg["buffer_size"],
+            "simulation_steps": int(duration["sim"] / duration["step"] + 1)
+        }
         print(f"rb_neuron simulation_steps: {params_rb_neuron['simulation_steps']}, duration['sim']: {duration['sim']}")
         
         # sdev: context-dependent default, allow explicit override
@@ -452,6 +456,11 @@ def run_simulation(
             # In trajectory mode, it's based on scaling angles.
             legacy_max_peak = rbf_cfg["scale_rate"] / duration["step"]
         params_rb_neuron["max_peak_rate"] = float(rbf_cfg.get("max_peak_rate_hz", legacy_max_peak))
+        
+        # Save computed values back to config model for documentation
+        config_model.rbf.sdev_hz = params_rb_neuron["sdev"]
+        if "max_peak_rate_hz" not in rbf_cfg:
+            config_model.rbf.max_peak_rate_hz = params_rb_neuron["max_peak_rate"]
 
         # Create the input layer as rb_neurons
         n_rb = num_centers
@@ -1461,10 +1470,19 @@ if __name__ == "__main__":
     scan_values = []
     if args.scan_values:
         for val_list in args.scan_values.split(";"):
-            vals = [
-                float(v) if v.replace(".", "", 1).replace("-", "", 1).isdigit() else v
-                for v in val_list.split(",")
-            ]
+            vals = []
+            for v in val_list.split(","):
+                v = v.strip()
+                # Try to parse as int first, then float, otherwise keep as string
+                try:
+                    # Check if it's an integer (no decimal point)
+                    if '.' not in v:
+                        vals.append(int(v))
+                    else:
+                        vals.append(float(v))
+                except ValueError:
+                    # Keep as string if not numeric
+                    vals.append(v)
             scan_values.append(vals)
 
     # Execute simulation runs

@@ -42,16 +42,53 @@ class TaskConfig(BaseModel):
 
 
 class RBFConfig(BaseModel):
-    """RBF encoding parameters."""
+    """RBF/rb_neuron encoding parameters.
     
+    All parameters for the input layer encoding. When rb_neuron is used (default),
+    these configure both the RBF encoding and the rb_neuron model behavior.
+    """
+    
+    # Core RBF encoding parameters
     num_centers: int = Field(default=20, description="Number of RBF centers for input encoding")
-    scale_rate: float = Field(default=500.0, description="RBF output scaling factor (Hz)")
     width: float = Field(default=0.06, description="RBF width in rad (standard deviation)")
-    shift_min_rate: float = Field(default=0.0, description="Minimum rate shift for RBF output (Hz)")
-    desired_upper_hz: float = Field(
-        default=60000.0, description="Desired upper firing rate for spike-input mode (Hz)"
+    
+    # Trajectory mode parameters
+    scale_rate: float = Field(
+        default=500.0, 
+        description="RBF output scaling factor for trajectory mode (Hz)"
     )
-    max_peak_rate_hz: float = Field(default=800.0, description="Maximum peak firing rate for rb_neuron (Hz)")
+    shift_min_rate: float = Field(
+        default=0.0, 
+        description="Minimum rate shift for RBF output (Hz)"
+    )
+    
+    # Spike-input mode parameters
+    desired_upper_hz: float = Field(
+        default=60000.0, 
+        description="Desired upper firing rate for spike-input mode (Hz). Used to compute rb_neuron sdev."
+    )
+    
+    # rb_neuron model parameters
+    kp: float = Field(
+        default=1000.0, 
+        description="Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)"
+    )
+    base_rate: float = Field(default=0.0, description="Base firing rate in Hz")
+    buffer_size: float = Field(default=10.0, description="Size of the sliding window in ms")
+    
+    # Optional computed parameters (computed from above if not provided)
+    sdev_hz: float | None = Field(
+        default=None,
+        description="Standard deviation for rb_neurons (Hz). If None, computed based on mode: "
+                    "spike-input mode uses desired_upper_hz * width, "
+                    "trajectory mode uses scale_rate * width"
+    )
+    max_peak_rate_hz: float | None = Field(
+        default=None,
+        description="Maximum peak firing rate for rb_neuron (Hz). If None, computed based on mode: "
+                    "spike-input mode uses desired_upper_hz, "
+                    "trajectory mode uses scale_rate / step"
+    )
 
 
 class RecurrentNeuronConfig(BaseModel):
@@ -85,17 +122,6 @@ class OutputNeuronConfig(BaseModel):
     V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
 
 
-class RBNeuronConfig(BaseModel):
-    """RB neuron parameters."""
-    
-    kp: float = Field(
-        default=1000.0, 
-        description="Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)"
-    )
-    base_rate: float = Field(default=0.0, description="Base firing rate in Hz")
-    buffer_size: float = Field(default=10.0, description="Size of the sliding window in ms")
-
-
 class NeuronsConfig(BaseModel):
     """Neuron parameters."""
     
@@ -104,7 +130,6 @@ class NeuronsConfig(BaseModel):
     exc_ratio: float = Field(default=0.8, description="Fraction of excitatory neurons in recurrent population")
     rec: RecurrentNeuronConfig = Field(default_factory=RecurrentNeuronConfig)
     out: OutputNeuronConfig = Field(default_factory=OutputNeuronConfig)
-    rb: RBNeuronConfig = Field(default_factory=RBNeuronConfig)
 
 
 class OptimizerConfig(BaseModel):
@@ -223,7 +248,10 @@ class MotorControllerConfig(BaseModel):
     def to_dict(self) -> dict:
         """Convert configuration to a dictionary (for backward compatibility).
         
+        Excludes None values to maintain compatibility with existing code that checks
+        for key existence rather than None values.
+        
         Returns:
             Dictionary representation of the configuration.
         """
-        return self.model_dump()
+        return self.model_dump(exclude_none=True)

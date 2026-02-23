@@ -24,14 +24,27 @@ task:
   learning_start: 650.0
   learning_end: 1500.0
 
-# RBF encoding parameters
+# RBF/rb_neuron encoding parameters
 rbf:
-  num_centers: 20 # Number of RBF centers for input encoding
-  scale_rate: 500.0 # RBF output scaling factor (Hz)
-  width: 0.06 # RBF width in rad (standard deviation)
-  shift_min_rate: 0.0 # Minimum rate shift for RBF output (Hz)
-  desired_upper_hz: 60000.0 # Desired upper firing rate for spike-input mode (Hz)
-  max_peak_rate_hz: 800.0 # Maximum peak firing rate for rb_neuron (Hz)
+  # Core encoding parameters
+  num_centers: 20  # Number of RBF centers for input encoding
+  width: 0.06  # RBF width in rad (standard deviation)
+
+  # Trajectory mode parameters
+  scale_rate: 500.0  # RBF output scaling factor (Hz)
+  shift_min_rate: 0.0  # Minimum rate shift for RBF output (Hz)
+
+  # Spike-input mode parameters
+  desired_upper_hz: 60000.0  # Desired upper firing rate for spike-input mode (Hz)
+
+  # rb_neuron model parameters
+  kp: 1000.0  # Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)
+  base_rate: 0.0  # Base firing rate in Hz
+  buffer_size: 10.0  # Size of the sliding window in ms
+
+  # Optional computed parameters (auto-computed if not set)
+  max_peak_rate_hz: 800.0  # Maximum peak firing rate for rb_neuron (Hz)
+  # sdev_hz: null  # Standard deviation for rb_neuron (Hz) - computed if not set
 
 # Neuron parameters
 neurons:
@@ -52,17 +65,13 @@ neurons:
     V_m: 0.0 # Initial membrane potential (mV)
     V_th: 20.0 # Spike threshold (mV)
   out:
-    C_m: 250.0 # Membrane capacitance (pF)
-    E_L: 0.0 # Resting membrane potential (mV)
-    I_e: 0.0 # External current (pA)
-    loss: mean_squared_error # Loss function for output neurons
-    regular_spike_arrival: false # Use regular spike arrival (true/false)
-    tau_m: 20.0 # Membrane time constant (ms)
-    V_m: 0.0 # Initial membrane potential (mV)
-  rb:
-    kp: 1000.0 # Input gain (1000 ensures correct conversion from spikes/ms to spikes/s)
-    base_rate: 0.0 # Base firing rate in Hz
-    buffer_size: 10.0 # Size of the sliding window in ms
+    C_m: 250.0  # Membrane capacitance (pF)
+    E_L: 0.0  # Resting membrane potential (mV)
+    I_e: 0.0  # External current (pA)
+    loss: mean_squared_error  # Loss function for output neurons
+    regular_spike_arrival: false  # Use regular spike arrival (true/false)
+    tau_m: 20.0  # Membrane time constant (ms)
+    V_m: 0.0  # Initial membrane potential (mV)
 
 # Synapse parameters
 synapses:

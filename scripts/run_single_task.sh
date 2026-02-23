@@ -63,9 +63,9 @@ echo "  rbf.num_centers = $num_center"
 echo "  synapses.w_input= $w_input"
 echo "  synapses.w_rec  = $w_rec"
 echo "  rbf.width       = $rbf_w"
-echo "  neurons.rb.buffer_size = $buffer_size"
+echo "  rbf.buffer_size = $buffer_size"
 
-scan_param_str="neurons.n_rec,task.n_iter,rbf.num_centers,synapses.w_input,synapses.w_rec,rbf.width,neurons.rb.buffer_size"
+scan_param_str="neurons.n_rec,task.n_iter,rbf.num_centers,synapses.w_input,synapses.w_rec,rbf.width,rbf.buffer_size"
 scan_values_str="$n_rec;$n_iter;$num_center;$w_input;$w_rec;$rbf_w;$buffer_size"
 
 python -m motor_controller_model.eprop_reaching_task \
