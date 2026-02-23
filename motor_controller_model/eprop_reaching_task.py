@@ -582,7 +582,7 @@ def run_simulation(
     # Create synapse parameters for feedback connections
     params_syn_feedback = {
         "synapse_model": "eprop_learning_signal_connection_bsshslm_2020",
-        "delay": duration["step"],
+        "delay": syn_cfg["feedback_delay"],
         "weight": nest.math.redraw(
             nest.random.normal(mean=w_rec, std=w_rec * 0.1), min=0.0, max=1000.0
         ),
@@ -590,16 +590,16 @@ def run_simulation(
     # Create synapse parameters for rate-based target connections
     params_syn_rate_target = {
         "synapse_model": "rate_connection_delayed",
-        "delay": duration["step"],
+        "delay": syn_cfg["rate_target_delay"],
         "receptor_type": syn_cfg["receptor_type"],
     }
-    params_syn_static = {"synapse_model": "static_synapse", "delay": duration["step"]}
+    params_syn_static = {"synapse_model": "static_synapse", "delay": syn_cfg["static_delay"]}
 
     # Connect input layer to recurrent layer
     if use_manual_rbf:
         params_syn_input = {
             "synapse_model": "static_synapse",
-            "delay": duration["step"],
+            "delay": syn_cfg["static_delay"],
             "weight": nest.math.redraw(
                 nest.random.normal(mean=w_input, std=w_input * 0.1), min=0.0, max=1000.0
             ),
@@ -639,12 +639,12 @@ def run_simulation(
         # rb_neuron connectivity
         params_syn_input_to_rb = {
             "synapse_model": "static_synapse",
-            "delay": duration["step"],
+            "delay": syn_cfg["static_delay"],
             "weight": 1.0,
         }
         params_syn_rb_to_rec = {
             "synapse_model": "static_synapse",
-            "delay": duration["step"],
+            "delay": syn_cfg["static_delay"],
             "weight": nest.math.redraw(
                 nest.random.normal(mean=w_input, std=w_input * 0.1), min=0.0, max=1000.0
             ),
@@ -1055,7 +1055,7 @@ def run_simulation(
                 parrot_neurons_input,
                 nrns_rb,
                 "all_to_all",
-                {"synapse_model": "static_synapse", "delay": duration["step"], "weight": weight_parrot_to_rb},
+                {"synapse_model": "static_synapse", "delay": syn_cfg["static_delay"], "weight": weight_parrot_to_rb},
             )
             
             # Configure rb_neuron "desired" rates for testing: fixed upper bound (Hz/neuron)
