@@ -1,11 +1,23 @@
 """
 m1_factory: Factory for creating/loading M1Network instances.
 """
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Tuple
 
 from motor_controller_model.config_schema import MotorControllerConfig
 from motor_controller_model.m1_network import M1Network
+
+def get_git_commit_hash(repo_dir: Path) -> str:
+    """Safely retrieves the current git commit hash."""
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'], 
+            cwd=repo_dir, 
+            stderr=subprocess.DEVNULL
+        ).decode('ascii').strip()
+    except Exception:
+        return "unknown"
 
 def get_trained_m1(
     config: MotorControllerConfig,
@@ -21,6 +33,9 @@ def get_trained_m1(
     # Use sim_results/m1_artifacts as the default directory for artifacts
     repo_root = Path(__file__).resolve().parent.parent
     
+    # Stamp the config with the git hash
+    config.git_commit = get_git_commit_hash(repo_root)
+
     # e.g., sim_results/m1_artifacts_a1b2c3d4
     short_hash = config.hash()[:8]
     artifacts_dir = repo_root / "sim_results" / f"m1_artifacts_{short_hash}"

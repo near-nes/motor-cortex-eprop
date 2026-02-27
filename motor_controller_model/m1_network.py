@@ -1,7 +1,13 @@
 """
 M1Network: Encapsulates the e-prop M1 network for spike-based input tasks.
 """
-
+try:
+    from interfaces.m1_base import M1SubModule
+except ImportError:
+    print("Warning: interfaces.m1_base not found. Running in standalone mode.")
+    class M1SubModule:
+        pass
+    
 import nest
 import numpy as np
 from pathlib import Path
@@ -16,7 +22,7 @@ from motor_controller_model.plot_results import (
     plot_weight_matrices,
 )
 
-class M1Network:
+class M1Network(M1SubModule):
     def __init__(self, config: MotorControllerConfig, artifacts_dir: Path):
         self.config = config
         self.artifacts_dir = Path(artifacts_dir)
@@ -526,3 +532,26 @@ class M1Network:
             raise FileNotFoundError(f"Weights file not found: {weights_path}")
         self.trained = True
         print(f"Weights loaded from {weights_path}")
+
+    def connect(self, source_population):
+        """
+        Connect source population to this M1 submodule.
+        Pipes Planner spikes into the M1 parrot neurons.
+        """
+        if self.nrns_parrot is not None:
+            nest.Connect(
+                source_population,
+                self.nrns_parrot,
+                "one_to_one",
+                {"synapse_model": "static_synapse", "weight": 1.0},
+            )
+
+    def get_output_pops(self):
+        """
+        Get the output populations from this M1 submodule.
+        Returns the positive and negative readout neurons.
+        """
+        if self.nrns_out is not None and len(self.nrns_out) >= 2:
+            # nrns_out[0] is positive, nrns_out[1] is negative
+            return self.nrns_out[0], self.nrns_out[1]
+        return None, None

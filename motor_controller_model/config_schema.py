@@ -266,6 +266,8 @@ class MotorControllerConfig(BaseModel):
     recording: RecordingConfig = Field(default_factory=RecordingConfig)
     plotting: PlottingConfig = Field(default_factory=PlottingConfig)
 
+    git_commit: str = Field(default="unknown", description="Git commit hash of the training code")
+
     @classmethod
     def from_yaml(cls, path: Path | str) -> "MotorControllerConfig":
         """Load configuration from a YAML file.
