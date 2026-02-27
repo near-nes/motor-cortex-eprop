@@ -56,7 +56,9 @@ if config_path.exists():
     config_obj = MotorControllerConfig.from_yaml(config_path)
     config = config_obj.to_dict()
 else:
-    raise FileNotFoundError(f"Config file not found at {config_path}")
+    print(f"Warning: Config file not found at {config_path}. Using schema defaults.")
+    config_obj = MotorControllerConfig()
+    config = config_obj.to_dict()
 
 # Use same variable names as eprop-reaching-task.py for consistency
 n_rec = int(config["neurons"]["n_rec"])

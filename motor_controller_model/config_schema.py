@@ -34,7 +34,7 @@ class TaskConfig(BaseModel):
     gradient_batch_size: int = Field(
         default=1, description="Batch size for gradient computation"
     )
-    n_iter: int = Field(default=500, description="Number of training iterations")
+    n_iter: int = Field(default=100, description="Number of training iterations")
     sequence: float = Field(default=1500.0, description="Sequence length (ms)")
     silent_period: float = Field(
         default=0.0, description="Silent period before receiving the trajectory (ms)"
@@ -94,13 +94,13 @@ class RBFConfig(BaseModel):
 
     # Optional computed parameters (computed from above if not provided)
     sdev_hz: float | None = Field(
-        default=None,
+        default=3600.0,
         description="Standard deviation for rb_neurons (Hz). If None, computed based on mode: "
         "spike-input mode uses desired_upper_hz * width, "
         "trajectory mode uses scale_rate * width",
     )
     max_peak_rate_hz: float | None = Field(
-        default=None,
+        default=800.0,
         description="Maximum peak firing rate for rb_neuron (Hz). If None, computed based on mode: "
         "spike-input mode uses desired_upper_hz, "
         "trajectory mode uses scale_rate / step",

@@ -266,9 +266,12 @@ def run_simulation(
         if config_path_override
         else Path(__file__).resolve().parent / "config" / "config.yaml"
     )
-    
-    # Load config using Pydantic for validation
-    config_model = MotorControllerConfig.from_yaml(str(config_path))
+    # Try to load config from YAML, fallback to schema defaults if missing
+    if config_path.exists():
+        config_model = MotorControllerConfig.from_yaml(str(config_path))
+    else:
+        print(f"Warning: Config file not found at {config_path}. Using schema defaults.")
+        config_model = MotorControllerConfig()
     
     # Override config with function arguments
     if n_rec is not None:
