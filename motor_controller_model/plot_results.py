@@ -486,7 +486,7 @@ def tutorial_plot_trajectories_and_targets(trajectory_files, target_files, param
     >>> # Spike input mode
     >>> tutorial_plot_trajectories_and_targets(None, target_files_with_input, params)
     """
-    from motor_controller_model.eprop_reaching_task import load_spike_data
+    from motor_controller_model.utils import load_spike_data
     
     # Detect spike input mode
     is_spike_input = (

@@ -72,7 +72,6 @@ import yaml
 
 
 # Add the parent directory to the system path for dataset import
-sys.path.append(str(Path(__file__).resolve().parent.parent / "dataset_motor_training"))
 from motor_controller_model.dataset_motor_training.load_dataset import load_data_file
 from motor_controller_model.config_schema import MotorControllerConfig
 from motor_controller_model.plot_results import (

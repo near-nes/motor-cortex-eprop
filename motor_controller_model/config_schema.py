@@ -1,12 +1,11 @@
 """Pydantic schema for motor controller model configuration."""
 
+import hashlib
 from pathlib import Path
 from typing import List, Literal
-
 import yaml
+ 
 from pydantic import BaseModel, Field, field_validator
-
-
 class SimulationConfig(BaseModel):
     """Simulation and environment parameters."""
 
@@ -302,3 +301,14 @@ class MotorControllerConfig(BaseModel):
             Dictionary representation of the configuration.
         """
         return self.model_dump(exclude_none=True)
+
+    def hash(self) -> str:
+        """
+        Compute a SHA256 hash of the configuration for versioning or caching.
+
+        Returns:
+            str: The SHA256 hexadecimal digest representing the current configuration state.
+        """
+        """Compute a SHA256 hash of the configuration for versioning or caching."""
+        config_bytes = yaml.dump(self.model_dump(), sort_keys=True).encode("utf-8")
+        return hashlib.sha256(config_bytes).hexdigest()
