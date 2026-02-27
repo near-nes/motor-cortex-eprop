@@ -253,8 +253,23 @@ n_rb = num_centers
 nrns_rb = nest.Create("rb_neuron", n_rb)
 
 # Set up rb_neuron parameters
-params_rb_neuron = config["neurons"]["rb"].copy()
-params_rb_neuron["simulation_steps"] = int(duration / step_ms + 1)
+
+# Use only the parameters from config['rbf'] that were used for training, no calculations
+rbf_cfg = config["rbf"]
+params_rb_neuron = {}
+for key in ["kp", "base_rate", "buffer_size", "simulation_steps", "sdev_hz", "max_peak_rate_hz"]:
+    if key in rbf_cfg:
+        # Map config keys to NEST parameter names if needed
+        if key == "sdev_hz":
+            params_rb_neuron["sdev"] = rbf_cfg[key]
+        elif key == "max_peak_rate_hz":
+            params_rb_neuron["max_peak_rate"] = rbf_cfg[key]
+        elif key == "simulation_steps":
+            params_rb_neuron["simulation_steps"] = int(duration / step_ms + 1)
+        else:
+            params_rb_neuron[key] = rbf_cfg[key]
+if "simulation_steps" not in params_rb_neuron:
+    params_rb_neuron["simulation_steps"] = int(duration / step_ms + 1)
 nest.SetStatus(nrns_rb, params_rb_neuron)
 
 # Set the desired rates for each rb_neuron (spike-input mode)
