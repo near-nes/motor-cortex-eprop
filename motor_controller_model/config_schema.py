@@ -4,8 +4,10 @@ import hashlib
 from pathlib import Path
 from typing import List, Literal
 import yaml
- 
+
 from pydantic import BaseModel, Field, field_validator
+
+
 class SimulationConfig(BaseModel):
     """Simulation and environment parameters."""
 
@@ -266,7 +268,9 @@ class MotorControllerConfig(BaseModel):
     recording: RecordingConfig = Field(default_factory=RecordingConfig)
     plotting: PlottingConfig = Field(default_factory=PlottingConfig)
 
-    git_commit: str = Field(default="unknown", description="Git commit hash of the training code")
+    git_commit: str = Field(
+        default="unknown", description="Git commit hash of the training code"
+    )
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> "MotorControllerConfig":

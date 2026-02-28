@@ -1,13 +1,16 @@
 """
 M1Network: Encapsulates the e-prop M1 network for spike-based input tasks.
 """
+
 try:
     from interfaces.m1_base import M1SubModule
 except ImportError:
     print("Warning: interfaces.m1_base not found. Running in standalone mode.")
+
     class M1SubModule:
         pass
-    
+
+
 import nest
 import numpy as np
 from pathlib import Path
@@ -21,6 +24,7 @@ from motor_controller_model.plot_results import (
     plot_spikes_and_dynamics,
     plot_weight_matrices,
 )
+
 
 class M1Network(M1SubModule):
     def __init__(self, config: MotorControllerConfig, artifacts_dir: Path):
@@ -398,7 +402,7 @@ class M1Network(M1SubModule):
 
         # 5. Recorders
         rec_cfg = self.config.recording
-        
+
         # Readout multimeter
         mm_out = nest.Create(
             "multimeter",
@@ -421,7 +425,7 @@ class M1Network(M1SubModule):
                 "stop": duration["task"],
             },
         )
-        nrns_rec_record = self.nrns_rec[:rec_cfg.n_record]
+        nrns_rec_record = self.nrns_rec[: rec_cfg.n_record]
         nest.Connect(mm_rec, nrns_rec_record)
 
         # Recurrent layer spike recorder
@@ -467,9 +471,12 @@ class M1Network(M1SubModule):
             idc = senders == sender
             error = (readout_signal[idc] - target_signal[idc]) ** 2
             task_steps = int(duration["task"] / step_ms)
-            seq_with_silence_steps = int(duration["total_sequence_with_silence"] / step_ms)
+            seq_with_silence_steps = int(
+                duration["total_sequence_with_silence"] / step_ms
+            )
             loss_list.append(
-                0.5 * np.add.reduceat(
+                0.5
+                * np.add.reduceat(
                     error, np.arange(0, task_steps, seq_with_silence_steps)
                 )
             )
@@ -479,9 +486,9 @@ class M1Network(M1SubModule):
         if self.config.plotting.do_plotting:
             print("Generating plots...")
             colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
-            
+
             plot_training_error(loss, self.artifacts_dir / "training_error.png")
-            
+
             events_sr = spike_recorder.get("events")
             events_mm_rec = mm_rec.get("events")
             plot_spikes_and_dynamics(
@@ -494,7 +501,7 @@ class M1Network(M1SubModule):
                 colors,
                 self.artifacts_dir / "spikes_and_dynamics.png",
             )
-            
+
             plot_weight_matrices(
                 weights_pre_train,
                 weights_post_train,
@@ -507,9 +514,15 @@ class M1Network(M1SubModule):
         conns = nest.GetConnections(pop_pre, pop_post).get(
             ["source", "target", "weight"]
         )
-        if not len(conns["source"]): # Safe check for empty connections
-            return {"source": [], "target": [], "weight": [], "len_source": len(pop_pre), "len_target": len(pop_post)}
-        
+        if not len(conns["source"]):  # Safe check for empty connections
+            return {
+                "source": [],
+                "target": [],
+                "weight": [],
+                "len_source": len(pop_pre),
+                "len_target": len(pop_post),
+            }
+
         conns["source"] = np.array(conns["source"]) - np.min(conns["source"])
         conns["target"] = np.array(conns["target"]) - np.min(conns["target"])
         conns["len_source"] = len(pop_pre)
@@ -517,34 +530,41 @@ class M1Network(M1SubModule):
         return conns
 
     def save_weights(self):
-        """Saves trained weights to artifacts directory."""
-        weights = {
+        """Saves trained weights to artifacts directory and keeps them in memory."""
+        self.saved_weights = {
             "rec_rec": self._get_weights(self.nrns_rec, self.nrns_rec),
             "rec_out": self._get_weights(self.nrns_rec, self.nrns_out),
             "rb_rec": self._get_weights(self.nrns_rb, self.nrns_rec),
         }
-        np.savez(self.artifacts_dir / "trained_weights.npz", **weights)
+        np.savez(self.artifacts_dir / "trained_weights.npz", **self.saved_weights)
         print(f"Weights saved to {self.artifacts_dir / 'trained_weights.npz'}")
 
     def load_weights(self, weights_path: Path):
-        """Loads weights from file."""
+        """Loads weights from file directly into memory."""
         if not weights_path.exists():
             raise FileNotFoundError(f"Weights file not found: {weights_path}")
+
+        # Load npz and convert numpy object arrays back to standard dictionaries
+        loaded = np.load(weights_path, allow_pickle=True)
+        self.saved_weights = {key: loaded[key].item() for key in loaded.files}
+
         self.trained = True
-        print(f"Weights loaded from {weights_path}")
+        print(f"Weights successfully loaded into memory from {weights_path}")
 
     def connect(self, source_population):
         """
-        Connect source population to this M1 submodule.
-        Pipes Planner spikes into the M1 parrot neurons.
+        Connect source population (Planner) to this M1 submodule.
+        Pipes Planner spikes directly into the M1 RB neurons for inference.
         """
-        if self.nrns_parrot is not None:
+        if getattr(self, "nrns_rb", None) is not None:
             nest.Connect(
                 source_population,
-                self.nrns_parrot,
-                "one_to_one",
+                self.nrns_rb,
+                "all_to_all",
                 {"synapse_model": "static_synapse", "weight": 1.0},
             )
+        else:
+            print("Warning: nrns_rb not found. Did you call build_network()?")
 
     def get_output_pops(self):
         """
@@ -555,3 +575,106 @@ class M1Network(M1SubModule):
             # nrns_out[0] is positive, nrns_out[1] is negative
             return self.nrns_out[0], self.nrns_out[1]
         return None, None
+
+    def build_network(self, simulation_time_ms: float = None):
+        """
+        Builds a clean SNN in NEST for inference/integration.
+        Uses exact saved topology and static synapses for maximum performance.
+        """
+        if getattr(self, "saved_weights", None) is None:
+            print("Error: No weights loaded. Cannot build network.")
+            return
+
+        print("Building clean M1 network for integration...")
+        self._install_nestml_module()
+
+        step_ms = self.config.simulation.step
+
+        # Calculate simulation time based on task parameters if not provided
+        if simulation_time_ms is None:
+            sequence_ms = self.config.task.sequence
+            silent_ms = self.config.task.silent_period
+
+            n_timesteps_per_seq = int(round((sequence_ms + silent_ms) / step_ms))
+            n_samples_per_traj = self.config.task.n_samples_per_trajectory_to_use
+            n_trajectories = len(self.config.task.trajectory_ids_to_use)
+            n_samples = n_trajectories * n_samples_per_traj
+
+            duration_task = n_timesteps_per_seq * n_samples * step_ms
+            simulation_time_ms = duration_task + step_ms
+
+        # Calculate exact array size for rb_neuron to prevent NEST memory leaks
+        simulation_steps = int(simulation_time_ms / step_ms + 1)
+
+        # 1. Create Neurons
+        rbf_cfg = self.config.rbf
+        n_rb = rbf_cfg.num_centers
+        sdev = (
+            rbf_cfg.sdev_hz
+            if rbf_cfg.sdev_hz is not None
+            else rbf_cfg.desired_upper_hz * rbf_cfg.width
+        )
+        max_peak = (
+            rbf_cfg.max_peak_rate_hz
+            if rbf_cfg.max_peak_rate_hz is not None
+            else rbf_cfg.desired_upper_hz
+        )
+
+        params_rb = {
+            "kp": rbf_cfg.kp,
+            "base_rate": rbf_cfg.base_rate,
+            "buffer_size": rbf_cfg.buffer_size,
+            "simulation_steps": simulation_steps,
+            "sdev": sdev,
+            "max_peak_rate": max_peak,
+        }
+        self.nrns_rb = nest.Create("rb_neuron", n_rb, params_rb)
+
+        desired_rates = np.linspace(
+            rbf_cfg.shift_min_rate, rbf_cfg.desired_upper_hz, n_rb
+        )
+        for i, nrn in enumerate(self.nrns_rb):
+            nest.SetStatus(nrn, {"desired": desired_rates[i]})
+
+        n_rec = self.config.neurons.n_rec
+        n_out = self.config.neurons.n_out
+        n_exc = int(n_rec * self.config.neurons.exc_ratio)
+        n_inh = n_rec - n_exc
+
+        self.nrns_rec = nest.Create(
+            "eprop_iaf_bsshslm_2020", n_exc, self.config.neurons.rec.model_dump()
+        ) + nest.Create(
+            "eprop_iaf_bsshslm_2020", n_inh, self.config.neurons.rec.model_dump()
+        )
+        self.nrns_out = nest.Create(
+            "eprop_readout_bsshslm_2020", n_out, self.config.neurons.out.model_dump()
+        )
+
+        # 2. Explicit Topology Injection
+        def apply_explicit_topology(pop_pre, pop_post, key, delay_val):
+            w_dict = self.saved_weights.get(key)
+            if not w_dict or len(w_dict["source"]) == 0:
+                print(f"Warning: No weights found for {key}")
+                return
+
+            sources = list(
+                np.array(w_dict["source"], dtype=int) + min(pop_pre.tolist())
+            )
+            targets = list(
+                np.array(w_dict["target"], dtype=int) + min(pop_post.tolist())
+            )
+            weights = list(w_dict["weight"])
+            delays = [delay_val] * len(weights)
+
+            nest.Connect(
+                sources,
+                targets,
+                "one_to_one",
+                {"synapse_model": "static_synapse", "weight": weights, "delay": delays},
+            )
+
+        apply_explicit_topology(self.nrns_rb, self.nrns_rec, "rb_rec", step_ms)
+        apply_explicit_topology(self.nrns_rec, self.nrns_rec, "rec_rec", step_ms)
+        apply_explicit_topology(self.nrns_rec, self.nrns_out, "rec_out", step_ms)
+
+        print("M1 Network successfully built and ready for integration.")
