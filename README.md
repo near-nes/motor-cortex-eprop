@@ -63,11 +63,17 @@ pip install -e .
 
 ### 2. Quick Start
 
-Run a motor control experiment using the main simulation module:
+Train the M1 network and run a standalone inference test:
 ```bash
-python -m motor_controller_model.eprop_reaching_task --use-manual-rbf
+python -m motor_controller_model.run_m1 --output-dir /path/to/artifacts --force-retrain
 ```
-This will run the reaching task experiment and save results to `sim_results/`.
+
+When running inside the controller devcontainer, use the `custom_stdp_module` NEST module:
+```bash
+python -m motor_controller_model.run_m1 --output-dir /sim/controller/artifacts/m1/ --force-retrain --nest-module=custom_stdp_module
+```
+
+This trains the network (or loads cached weights if config matches), then runs an inference test and saves results and plots to the output directory.
 
 **For detailed usage, command-line options, and parameter sweeps**, see the [motor_controller_model README](motor_controller_model/README.md).
 
