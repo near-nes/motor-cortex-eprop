@@ -3,18 +3,23 @@ run_m1.py: Script to run M1 training/loading using the new factory structure.
 """
 
 import argparse
-from pathlib import Path
 import sys
-import numpy as np
-import nest
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import nest
+import numpy as np
 
 # Ensure package is in path if running as script
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from motor_controller_model.config_schema import MotorControllerConfig
-from motor_controller_model.m1_factory import get_trained_m1
-from motor_controller_model.utils import load_spike_data
+import structlog
+
+from .config_schema import MotorControllerConfig
+from .m1_factory import get_m1_or_train
+from .utils import install_nestml_module, load_spike_data
+
+_log = structlog.get_logger("m1_train")
 
 
 def main():
@@ -23,6 +28,19 @@ def main():
         "--force-retrain",
         action="store_true",
         help="Force retraining even if cache exists",
+    )
+    default_artifacts = Path(__file__).resolve().parent.parent / "results"
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=default_artifacts,
+        help=f"Directory to save artifacts (default: {default_artifacts})",
+    )
+    parser.add_argument(
+        "--nest-module",
+        type=str,
+        default="motor_neuron_module",
+        help="NEST module (default: motor_neuron_module; use custom_stdp_module in controller)",
     )
     args = parser.parse_args()
 
@@ -35,7 +53,7 @@ def main():
     )
 
     if not base_data_dir.exists():
-        print(f"Error: Dataset directory not found at {base_data_dir}")
+        _log.debug(f"Error: Dataset directory not found at {base_data_dir}")
         return
 
     traj1 = {
@@ -61,15 +79,26 @@ def main():
     }
     training_data = [traj1, traj2]
 
-    # 3. Use Factory to get Model (Returns a clean inference SNN)
-    print(f"Requesting M1 model (Artifacts: sim_results/m1_artifacts)...")
-    network = get_trained_m1(config, training_data, args.force_retrain)
-    print("M1 Model ready.")
+    artifacts_dir = args.output_dir
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    network = get_m1_or_train(
+        config,
+        training_data,
+        artifacts_dir=artifacts_dir,
+        force_retrain=args.force_retrain,
+        nest_module=args.nest_module,
+    )
+
+    nest.ResetKernel()
+    nest.SetKernelStatus({"resolution": config.simulation.step})
+    _log.debug(args.nest_module)
+    install_nestml_module(args.nest_module)
+    network.build_network()
 
     # =====================================================================
-    # 4. STANDALONE INFERENCE TEST (Evaluating All Trajectories)
+    # STANDALONE INFERENCE TEST (Evaluating All Trajectories)
     # =====================================================================
-    print(
+    _log.debug(
         f"\n--- Running Standalone Inference Test on {len(training_data)} Trajectories ---"
     )
 
@@ -127,7 +156,7 @@ def main():
     nest.Connect(mm_out, out_pos + out_neg)
 
     # E. Run Inference
-    print(f"Simulating inference pass for {sim_time} ms...")
+    _log.debug(f"Simulating inference pass for {sim_time} ms...")
     nest.Simulate(sim_time)
 
     # F. Plotting
@@ -165,9 +194,9 @@ def main():
     plt.legend()
     plt.tight_layout()
 
-    plot_path = network.artifacts_dir / "standalone_inference_test.png"
+    plot_path = artifacts_dir / "standalone_inference_test.png"
     plt.savefig(plot_path)
-    print(f"Test complete! Output plotted to: {plot_path}")
+    _log.debug(f"Test complete! Output plotted to: {plot_path}")
 
 
 if __name__ == "__main__":
