@@ -3,9 +3,9 @@
 import hashlib
 from pathlib import Path
 from typing import List, Literal
-import yaml
 
-from pydantic import BaseModel, Field, field_validator
+import yaml
+from pydantic import BaseModel, Field
 
 
 class SimulationConfig(BaseModel):
