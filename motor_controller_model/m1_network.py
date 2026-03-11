@@ -97,7 +97,7 @@ class M1Network:
 
     def build_network(
         self,
-        simulation_time_ms: float = None,
+        simulation_time_ms: float,
         train: bool = False,
         output_neuron_model: str = "eprop_readout_bsshslm_2020",
         output_neuron_params: dict | None = None,
@@ -110,7 +110,7 @@ class M1Network:
         When train=True: creates plastic e-prop synapses with random initial weights for training.
 
         Args:
-            simulation_time_ms: Total simulation duration in ms. If None, calculated from config.
+            simulation_time_ms: Total simulation duration in ms.
             train: If True, build for training with plastic synapses. If False, build for inference.
             output_neuron_model: Neuron model for output layer (ignored when train=True).
             output_neuron_params: Parameters for the output neuron model. If None,
@@ -222,7 +222,7 @@ class M1Network:
         if train:
             self._connect_for_training(step_ms, n_exc)
         else:
-            self._connect_from_saved_weights(step_ms)
+            self._connect_from_saved_weights()
 
     def _connect_for_training(self, step_ms, n_exc):
         """Create plastic e-prop connections for training."""
@@ -342,7 +342,7 @@ class M1Network:
             },
         )
 
-    def _connect_from_saved_weights(self, step_ms):
+    def _connect_from_saved_weights(self):
         """Inject exact saved topology with static synapses for inference."""
 
         def apply_saved(pop_pre, pop_post, key):
@@ -351,20 +351,17 @@ class M1Network:
                 self._log.warning("no weights found", key=key)
                 return
 
-            sources = list(
-                np.array(w_dict["source"], dtype=int) + min(pop_pre.tolist())
-            )
-            targets = list(
-                np.array(w_dict["target"], dtype=int) + min(pop_post.tolist())
-            )
+            pre_ids = pop_pre.tolist()
+            post_ids = pop_post.tolist()
+            sources = [pre_ids[s] for s in w_dict["source"]]
+            targets = [post_ids[t] for t in w_dict["target"]]
             weights = list(w_dict["weight"])
-            delays = [delay_val] * len(weights)
 
             nest.Connect(
                 sources,
                 targets,
                 "one_to_one",
-                {"synapse_model": "static_synapse", "weight": weights, "delay": delays},
+                {"synapse_model": "static_synapse", "weight": weights},
             )
 
         apply_saved(self.nrns_rb, self.nrns_rec, "rb_rec")
