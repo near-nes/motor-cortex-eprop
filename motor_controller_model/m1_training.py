@@ -185,7 +185,7 @@ def train_m1(
 
     nest.Connect(
         gen_rate_target[0],
-        network.nrns_out[0],
+        network.nrns_out_p,
         "one_to_one",
         {
             "synapse_model": "rate_connection_delayed",
@@ -195,7 +195,7 @@ def train_m1(
     )
     nest.Connect(
         gen_rate_target[1],
-        network.nrns_out[1],
+        network.nrns_out_n,
         "one_to_one",
         {
             "synapse_model": "rate_connection_delayed",
@@ -216,7 +216,8 @@ def train_m1(
             "stop": duration["task"],
         },
     )
-    nest.Connect(mm_out, network.nrns_out)
+    nrns_out = network.nrns_out_p + network.nrns_out_n
+    nest.Connect(mm_out, nrns_out)
 
     mm_rec = nest.Create(
         "multimeter",
@@ -244,7 +245,7 @@ def train_m1(
     # Capture pre-training weights
     weights_pre_train = {
         "rec_rec": get_weights(network.nrns_rec, network.nrns_rec),
-        "rec_out": get_weights(network.nrns_rec, network.nrns_out),
+        "rec_out": get_weights(network.nrns_rec, nrns_out),
     }
 
     # 5. Simulation
@@ -257,7 +258,7 @@ def train_m1(
     # Capture post-training weights
     weights_post_train = {
         "rec_rec": get_weights(network.nrns_rec, network.nrns_rec),
-        "rec_out": get_weights(network.nrns_rec, network.nrns_out),
+        "rec_out": get_weights(network.nrns_rec, nrns_out),
         "rb_rec": get_weights(network.nrns_rb, network.nrns_rec),
     }
 
