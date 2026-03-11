@@ -200,11 +200,12 @@ class M1Network:
             )
         else:
             out_params = output_neuron_params or self.config.neurons.out.model_dump()
-            out_params["simulation_steps"] = simulation_steps
-            self.nrns_out_p = nest.Create(output_neuron_model, n_per_channel)
-            nest.SetStatus(self.nrns_out_p, out_params)
-            self.nrns_out_n = nest.Create(output_neuron_model, n_per_channel)
-            nest.SetStatus(self.nrns_out_n, out_params)
+            self.nrns_out_p = nest.Create(
+                output_neuron_model, n_per_channel, out_params
+            )
+            self.nrns_out_n = nest.Create(
+                output_neuron_model, n_per_channel, out_params
+            )
 
         # 3. Create Connections
         if train:
