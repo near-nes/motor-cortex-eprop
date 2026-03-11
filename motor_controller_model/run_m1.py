@@ -93,7 +93,13 @@ def main():
     nest.SetKernelStatus({"resolution": config.simulation.step})
     _log.debug(args.nest_module)
     install_nestml_module(args.nest_module)
-    network.build_network()
+
+    task = config.task
+    step = config.simulation.step
+    n_steps_per_seq = int(round((task.sequence + task.silent_period) / step))
+    n_samples = len(task.trajectory_ids_to_use) * task.n_samples_per_trajectory_to_use
+    sim_time_ms = n_steps_per_seq * n_samples * step + step
+    network.build_network(simulation_time_ms=sim_time_ms)
 
     # =====================================================================
     # STANDALONE INFERENCE TEST (Evaluating All Trajectories)

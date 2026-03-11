@@ -141,18 +141,6 @@ class M1Network:
         )
 
         step_ms = self.config.simulation.step
-
-        # Calculate simulation time if not provided
-        if simulation_time_ms is None:
-            sequence_ms = self.config.task.sequence
-            silent_ms = self.config.task.silent_period
-            n_timesteps_per_seq = int(round((sequence_ms + silent_ms) / step_ms))
-            n_samples_per_traj = self.config.task.n_samples_per_trajectory_to_use
-            n_trajectories = len(self.config.task.trajectory_ids_to_use)
-            n_samples = n_trajectories * n_samples_per_traj
-            duration_task = n_timesteps_per_seq * n_samples * step_ms
-            simulation_time_ms = duration_task + step_ms
-
         simulation_steps = int(simulation_time_ms / step_ms + 1)
 
         # 1. Create RB Neurons
