@@ -2,7 +2,87 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from cycler import cycler
+
+M1_PHASE_COLORS = {
+    "silent": "#9E9E9E",
+    "input": "#2196F3",
+    "learning": "#4CAF50",
+    "post": "#795548",
+}
+
+
+def _get_m1_sequence_phases(duration, task_cfg=None):
+    """Return list of (start_ms, end_ms, label, color) for phases within one M1 sequence.
+
+    Args:
+        duration: Duration dict from eprop_reaching_task (must have 'sequence', 'silent_period').
+        task_cfg: Optional task config dict with 'learning_start' and 'learning_end'.
+    """
+    seq = duration["sequence"]
+    silent = duration.get("silent_period", 0)
+    learning_start = task_cfg.get("learning_start", silent) if task_cfg else silent
+    learning_end = task_cfg.get("learning_end", seq) if task_cfg else seq
+
+    phases = []
+    if silent > 0:
+        phases.append((0, silent, "silent", M1_PHASE_COLORS["silent"]))
+    if learning_start > silent:
+        phases.append((silent, learning_start, "input", M1_PHASE_COLORS["input"]))
+    phases.append((learning_start, learning_end, "learning", M1_PHASE_COLORS["learning"]))
+    if learning_end < seq:
+        phases.append((learning_end, seq, "post", M1_PHASE_COLORS["post"]))
+    return phases
+
+
+def draw_m1_sequence_phases(
+    axes,
+    duration,
+    task_cfg=None,
+    window_offset=0,
+    alpha=0.07,
+    label_phases=True,
+):
+    """Draw vertical shading for M1 sequence phases on given axes.
+
+    Args:
+        axes: Single axis or list of axes.
+        duration: Duration dict from eprop_reaching_task.
+        task_cfg: Optional task config dict with learning_start/end.
+        window_offset: Time offset of the plotted window (to align phases).
+        alpha: Shading transparency.
+        label_phases: Whether to add text labels on the top axis.
+    """
+    if not isinstance(axes, (list, np.ndarray)):
+        axes = [axes]
+
+    seq_with_silence = duration["total_sequence_with_silence"]
+    n_trajectories = duration.get("n_trajectories", 1)
+    phases_template = _get_m1_sequence_phases(duration, task_cfg)
+
+    # Determine how many sequences fit in the window
+    for traj_idx in range(n_trajectories):
+        traj_offset = traj_idx * seq_with_silence + window_offset
+        for start, end, label, color in phases_template:
+            abs_start = traj_offset + start
+            abs_end = traj_offset + end
+            for ax in axes:
+                ax.axvspan(abs_start, abs_end, alpha=alpha, color=color, zorder=0)
+                ax.axvline(abs_start, color=color, linestyle="--", linewidth=0.6, alpha=0.5, zorder=1)
+        # Label on first sequence only
+        if label_phases and traj_idx == 0:
+            for start, end, label, color in phases_template:
+                mid = traj_offset + (start + end) / 2
+                axes[0].text(
+                    mid,
+                    -0.08,
+                    label,
+                    transform=axes[0].get_xaxis_transform(),
+                    ha="center",
+                    va="top",
+                    fontsize=7,
+                    color=color,
+                    fontweight="bold",
+                )
 
 
 def plot_all_loss_curves(
@@ -127,6 +207,7 @@ def plot_spikes_and_dynamics(
     duration,
     colors,
     out_prefix,
+    task_cfg=None,
 ):
     """
     Plot spikes and all recorded dynamic variables for a simulation run, showing pre- and post-training windows side by side.
@@ -290,6 +371,17 @@ def plot_spikes_and_dynamics(
         xlims_list[1],
         out_colors,
     )
+
+    # Draw M1 sequence phase overlays on both columns
+    for col, (win_start, _win_end) in enumerate(xlims_list):
+        col_axes = [axs[row, col] for row in range(8)]
+        draw_m1_sequence_phases(
+            col_axes,
+            duration,
+            task_cfg=task_cfg,
+            window_offset=win_start,
+            label_phases=True,
+        )
 
     # Set labels and titles
     axs[0, 0].set_title("Pre-training window", fontsize=12, fontweight="bold")

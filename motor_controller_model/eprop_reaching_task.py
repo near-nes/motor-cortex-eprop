@@ -1251,6 +1251,7 @@ def run_simulation(
             duration,
             colors,
             os.path.join(out_dir, "spikes_and_dynamics.png"),
+            task_cfg=config["task"],
         )
         plot_weight_time_courses(
             events_wr,

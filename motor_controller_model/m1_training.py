@@ -297,6 +297,7 @@ def train_m1(
             duration,
             colors,
             artifacts_dir / "spikes_and_dynamics.png",
+            task_cfg=config.task.model_dump(),
         )
 
         plot_weight_matrices(
