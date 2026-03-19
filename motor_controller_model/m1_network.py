@@ -40,7 +40,7 @@ def get_weights(pop_pre, pop_post):
 
 class M1Network:
     def __init__(self, config: MotorControllerConfig):
-        self._log = structlog.get_logger("m1_network")
+        self._log: structlog.BoundLogger = structlog.get_logger("m1_network")
         self.config = config
         self.trained = False
 
@@ -73,20 +73,18 @@ class M1Network:
         self.trained = True
         self._log.debug("weights loaded", path=str(weights_path))
 
-    def connect(self, source_population):
+    def connect(self, source_population, params={}):
         """
         Connect source population (Planner) to this M1 submodule.
         Pipes Planner spikes directly into the M1 RB neurons for inference.
         """
-        if getattr(self, "nrns_rb", None) is not None:
-            nest.Connect(
-                source_population,
-                self.nrns_rb,
-                "all_to_all",
-                {"synapse_model": "static_synapse", "weight": 1.0},
-            )
-        else:
-            self._log.warning("nrns_rb not found, call build_network() first")
+        nest.Connect(
+            source_population,
+            self.nrns_rb,
+            "all_to_all",
+            {"synapse_model": "static_synapse", "weight": 1.0, **params},
+        )
+        return nest.GetConnections(source_population, self.nrns_rb)
 
     def get_output_pops(self):
         """
@@ -200,12 +198,10 @@ class M1Network:
             )
         else:
             out_params = output_neuron_params or self.config.neurons.out.model_dump()
-            self.nrns_out_p = nest.Create(
-                output_neuron_model, n_per_channel, out_params
-            )
-            self.nrns_out_n = nest.Create(
-                output_neuron_model, n_per_channel, out_params
-            )
+            self.nrns_out_p = nest.Create(output_neuron_model, n_per_channel)
+            nest.SetStatus(self.nrns_out_p, out_params)
+            self.nrns_out_n = nest.Create(output_neuron_model, n_per_channel)
+            nest.SetStatus(self.nrns_out_n, out_params)
 
         # 3. Create Connections
         if train:
@@ -363,6 +359,7 @@ class M1Network:
         base_targets = np.array(w_dict["target"], dtype=int)
         base_weights = np.array(w_dict["weight"])
         rec_ids = np.array(self.nrns_rec)
+        self.conns_rec_out = []
 
         for trained_idx, pop in enumerate([self.nrns_out_p, self.nrns_out_n]):
             mask = base_targets == trained_idx
@@ -383,5 +380,29 @@ class M1Network:
                     "weight": np.tile(wts, len(pop_ids)),
                 },
             )
+            # for s, t, w in zip(
+            #     np.tile(src, len(pop_ids)).tolist(),
+            #     np.repeat(pop_ids, len(src)).tolist(),
+            #     np.tile(wts, len(pop_ids)).tolist(),
+            # ):
+            #     nest.Connect(
+            #         [s],
+            #         [t],
+            #         "one_to_one",
+            #         {
+            #             "synapse_model": "static_synapse",
+            #             "weight": [0],  # 0
+            #         },
+            #     )
+            #     self.conns_rec_out.append((s, t, w))
 
         self._log.debug("M1 network built and ready for integration")
+
+    def connect_rec_out(self):
+        self._log.debug("connecting updated weights")
+        for s, t, w in self.conns_rec_out:
+            conn = nest.GetConnections(
+                nest.NodeCollection([s]), nest.NodeCollection([t])
+            )
+            nest.SetStatus(conn, {"weight": w})
+        self._log.debug("connected updated weights rec to out")

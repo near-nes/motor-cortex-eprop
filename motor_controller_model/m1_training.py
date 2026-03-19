@@ -62,7 +62,9 @@ def train_m1(
     step_ms = config.simulation.step
     sequence_ms = config.task.sequence
     silent_ms = config.task.silent_period
-    total_seq_ms = sequence_ms + silent_ms
+    input_shift_ms = config.task.input_shift_ms
+    shift_steps = int(input_shift_ms / step_ms) if input_shift_ms > 0 else 0
+    total_seq_ms = sequence_ms + silent_ms + input_shift_ms
     n_iter = config.task.n_iter
     n_samples = len(training_data)
 
@@ -108,11 +110,8 @@ def train_m1(
                 silent_steps = int(silent_ms / step_ms)
                 smoothed = np.concatenate((np.zeros(silent_steps), smoothed))
 
-            if config.task.input_shift_ms > 0:
-                shift_steps = int(config.task.input_shift_ms / step_ms)
-                shifted = np.roll(smoothed, shift_steps)
-                shifted[:shift_steps] = 0.0
-                smoothed = shifted
+            if shift_steps > 0:
+                smoothed = np.concatenate((np.zeros(shift_steps), smoothed))
 
             desired_targets_list[key].append(smoothed)
 
@@ -279,6 +278,7 @@ def train_m1(
             * np.add.reduceat(error, np.arange(0, task_steps, seq_with_silence_steps))
         )
     loss = np.sum(loss_list, axis=0)
+    np.save(artifacts_dir / "training_loss.npy", loss)
 
     if config.plotting.do_plotting:
         _log.debug("Generating plots...")
