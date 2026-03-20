@@ -144,30 +144,20 @@ class M1Network:
         # 1. Create RB Neurons
         rbf_cfg = self.config.rbf
         n_rb = rbf_cfg.num_centers
-        sdev = (
-            rbf_cfg.sdev_hz
-            if rbf_cfg.sdev_hz is not None
-            else rbf_cfg.desired_upper_hz * rbf_cfg.width
-        )
-        max_peak = (
-            rbf_cfg.max_peak_rate_hz
-            if rbf_cfg.max_peak_rate_hz is not None
-            else rbf_cfg.desired_upper_hz
-        )
 
         params_rb = {
             "kp": rbf_cfg.kp,
             "base_rate": rbf_cfg.base_rate,
             "buffer_size": rbf_cfg.buffer_size,
             "simulation_steps": simulation_steps,
-            "sdev": sdev,
-            "max_peak_rate": max_peak,
+            "sdev": rbf_cfg.sdev_hz,
+            "max_peak_rate": rbf_cfg.max_peak_rate_hz,
         }
         self.nrns_rb = nest.Create("rb_neuron_nestml", n_rb)
         nest.SetStatus(self.nrns_rb, params_rb)
 
         desired_rates = np.linspace(
-            rbf_cfg.shift_min_rate, rbf_cfg.desired_upper_hz, n_rb
+            rbf_cfg.desired_min_rate, rbf_cfg.desired_max_rate, n_rb
         )
         for i, nrn in enumerate(self.nrns_rb):
             nest.SetStatus(nrn, {"desired": desired_rates[i]})

@@ -4,8 +4,11 @@ import hashlib
 from pathlib import Path
 from typing import List, Literal
 
+import structlog
 import yaml
 from pydantic import BaseModel, Field
+
+_log = structlog.get_logger("m1_config")
 
 
 class SimulationConfig(BaseModel):
@@ -112,6 +115,16 @@ class TrainingTimings(BaseModel):
             training.time_prep_ms + training.time_move_ms + training.time_post_ms
         )
         learning_window = min(task.learning_window_ms, sequence_ms)
+        expected_lw = sequence_ms - task.input_shift_ms
+        if learning_window != expected_lw:
+            _log.warning(
+                "learning_window_ms differs from sequence_ms - input_shift_ms; "
+                "the network may be penalized during the observation period",
+                learning_window_ms=learning_window,
+                expected=expected_lw,
+                input_shift_ms=task.input_shift_ms,
+                sequence_ms=sequence_ms,
+            )
         return cls(
             step_ms=step_ms,
             sequence_ms=sequence_ms,
@@ -135,19 +148,6 @@ class TrainingTimings(BaseModel):
     def sim_ms(self) -> float:
         return self.task_ms
 
-    def to_duration_dict(self) -> dict:
-        """Backward-compat dict for plot_results.py."""
-        return {
-            "step": self.step_ms,
-            "sequence": self.sequence_ms,
-            "silent_period": 0.0,
-            "total_sequence_with_silence": self.sequence_ms,
-            "learning_window": self.learning_window,
-            "task": self.task_ms,
-            "sim": self.sim_ms,
-            "n_trajectories": self.n_samples,
-        }
-
 
 class RBFConfig(BaseModel):
     """RBF/rb_neuron encoding parameters.
@@ -156,26 +156,15 @@ class RBFConfig(BaseModel):
     these configure both the RBF encoding and the rb_neuron model behavior.
     """
 
-    # Core RBF encoding parameters
     num_centers: int = Field(
         default=20, description="Number of RBF centers for input encoding"
     )
-    width: float = Field(
-        default=0.06, description="RBF width in rad (standard deviation)"
+    desired_min_rate: float = Field(
+        default=0.0, description="Lower bound of desired-rate linspace (Hz)"
     )
-
-    # Trajectory mode parameters
-    scale_rate: float = Field(
-        default=500.0, description="RBF output scaling factor for trajectory mode (Hz)"
-    )
-    shift_min_rate: float = Field(
-        default=0.0, description="Minimum rate shift for RBF output (Hz)"
-    )
-
-    # Spike-input mode parameters
-    desired_upper_hz: float = Field(
+    desired_max_rate: float = Field(
         default=60000.0,
-        description="Desired upper firing rate for spike-input mode (Hz). Used to compute rb_neuron sdev.",
+        description="Upper bound of desired-rate linspace (Hz)",
     )
 
     # rb_neuron model parameters
@@ -187,19 +176,14 @@ class RBFConfig(BaseModel):
     buffer_size: float = Field(
         default=10.0, description="Size of the sliding window in ms"
     )
-
-    # Optional computed parameters (computed from above if not provided)
-    sdev_hz: float | None = Field(
-        default=3600.0,
-        description="Standard deviation for rb_neurons (Hz). If None, computed based on mode: "
-        "spike-input mode uses desired_upper_hz * width, "
-        "trajectory mode uses scale_rate * width",
+    sdev_hz: float = Field(
+        default=1500.0,
+        description="Gaussian width for rb_neurons (Hz). Controls selectivity: "
+        "smaller values make each center respond more narrowly to its preferred input rate.",
     )
-    max_peak_rate_hz: float | None = Field(
+    max_peak_rate_hz: float = Field(
         default=800.0,
-        description="Maximum peak firing rate for rb_neuron (Hz). If None, computed based on mode: "
-        "spike-input mode uses desired_upper_hz, "
-        "trajectory mode uses scale_rate / step",
+        description="Maximum peak firing rate for rb_neuron (Hz)",
     )
 
 
