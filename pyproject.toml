@@ -18,7 +18,8 @@ dependencies = [
     "statsmodels",
     "nestml",
     "odetoolbox",
-    "structlog"
+    "structlog",
+    "minjerk-dynamics @ git+https://github.com/near-nes/controller.git#subdirectory=complete_control/shared/minjerk"
 ]
 
 [build-system]
