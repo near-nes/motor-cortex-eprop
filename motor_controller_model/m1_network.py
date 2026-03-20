@@ -220,7 +220,7 @@ class M1Network:
         syn_cfg = self.config.synapses
         n_rec = self.config.neurons.n_rec
         n_rb = self.config.rbf.num_centers
-        optimizer_cfg = syn_cfg.exc.optimizer
+        optimizer_cfg = syn_cfg.syn.optimizer
 
         nest.CopyModel(
             "eprop_synapse_bsshslm_2020",
