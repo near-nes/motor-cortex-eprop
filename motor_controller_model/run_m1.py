@@ -107,6 +107,9 @@ def run_inference_test(
     )
     nest.Connect(mm_out, out_pos + out_neg)
 
+    sr_rb = nest.Create("spike_recorder", {"start": step_ms, "stop": sim_time_ms})
+    nest.Connect(network.nrns_rb, sr_rb)
+
     _log.debug("simulating inference", sim_time_ms=sim_time_ms)
     nest.Simulate(sim_time_ms)
 
@@ -114,40 +117,60 @@ def run_inference_test(
     events = mm_out.get("events")
     idc_pos = events["senders"] == out_pos.tolist()[0]
     idc_neg = events["senders"] == out_neg.tolist()[0]
+    events_rb = sr_rb.get("events")
 
-    plt.figure(figsize=(10, 4))
-    plt.plot(
+    fig, axs = plt.subplots(3, 1, sharex=True, figsize=(10, 8), dpi=300)
+
+    # Row 0: planner input trajectory
+    one_iter = np.concatenate([sig.input_trajectory for sig in all_signals])
+    t_traj = np.arange(len(one_iter)) * step_ms
+    axs[0].plot(t_traj, np.rad2deg(one_iter), lw=1.5, color="#1f77b4")
+    axs[0].set_ylabel("planner (deg)")
+    axs[0].grid(True, linestyle="--", alpha=0.3)
+
+    # Row 1: RBF spike raster
+    rb_ids = network.nrns_rb.tolist()
+    rb_mask = np.isin(events_rb["senders"], rb_ids)
+    if np.any(rb_mask):
+        axs[1].scatter(
+            events_rb["times"][rb_mask],
+            events_rb["senders"][rb_mask],
+            s=2, color="black", alpha=0.7,
+        )
+    axs[1].set_ylabel(r"$z_{rb}$")
+    axs[1].grid(True, linestyle="--", alpha=0.3)
+
+    # Row 2: readout signals
+    axs[2].plot(
         events["times"][idc_pos],
         events["readout_signal"][idc_pos],
-        label="Pos Readout",
-        color="blue",
+        label="Pos Readout", color="blue",
     )
-    plt.plot(
+    axs[2].plot(
         events["times"][idc_neg],
         events["readout_signal"][idc_neg],
-        label="Neg Readout",
-        color="red",
+        label="Neg Readout", color="red",
     )
+    axs[2].set_ylabel("Rate Signal")
+    axs[2].set_xlabel("Time (ms)")
+    axs[2].legend()
+    axs[2].grid(True, linestyle="--", alpha=0.3)
 
+    # Trajectory boundaries
     total_seq_ms = n_steps_per_seq * step_ms
     for i in range(1, n_trajectories):
-        plt.axvline(
-            x=i * total_seq_ms,
-            color="gray",
-            linestyle="--",
-            alpha=0.5,
-            label="Trajectory Boundary" if i == 1 else "",
-        )
+        for ax in axs:
+            ax.axvline(x=i * total_seq_ms, color="gray", linestyle="--", alpha=0.5)
 
-    plt.title(f"Standalone Inference Test Output ({n_trajectories} Trajectories)")
-    plt.xlabel("Time (ms)")
-    plt.ylabel("Rate Signal")
-    plt.legend()
-    plt.tight_layout()
+    fig.suptitle(
+        f"Standalone Inference Test ({n_trajectories} Trajectories)",
+        fontsize=14, fontweight="bold",
+    )
+    fig.tight_layout()
 
     plot_path = artifacts_dir / "standalone_inference_test.png"
-    plt.savefig(plot_path)
-    plt.close()
+    fig.savefig(plot_path)
+    plt.close(fig)
     _log.debug(f"inference test complete {plot_path}")
 
     # Return readout arrays for downstream use

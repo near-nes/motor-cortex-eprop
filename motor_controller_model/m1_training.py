@@ -197,7 +197,12 @@ def _create_recorders(network, timings, config):
     )
     nest.Connect(network.nrns_rec, spike_recorder)
 
-    return mm_out, mm_rec, spike_recorder
+    spike_recorder_rb = nest.Create(
+        "spike_recorder", {"start": step_ms, "stop": timings.task_ms}
+    )
+    nest.Connect(network.nrns_rb, spike_recorder_rb)
+
+    return mm_out, mm_rec, spike_recorder, spike_recorder_rb
 
 
 def _compute_loss(events_mm_out, timings) -> np.ndarray:
@@ -251,7 +256,9 @@ def train_m1(
     # Wire up training-specific NEST objects
     _create_planner_neurons(network, all_signals, timings, config)
     _create_target_generators(network, all_signals, timings, config)
-    mm_out, mm_rec, spike_recorder = _create_recorders(network, timings, config)
+    mm_out, mm_rec, spike_recorder, spike_recorder_rb = _create_recorders(
+        network, timings, config
+    )
 
     # Capture pre-training weights
     nrns_out = network.nrns_out_p + network.nrns_out_n
@@ -280,8 +287,6 @@ def train_m1(
     # Plotting
     if config.plotting.do_plotting:
         _log.debug("generating plots")
-        duration = timings.to_duration_dict()
-        colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
 
         plot_training_error(loss, artifacts_dir / "training_error.png")
         plot_spikes_and_dynamics(
@@ -290,15 +295,17 @@ def train_m1(
             events_mm_out,
             network.nrns_rec,
             config.recording.n_record,
-            duration,
-            colors,
+            timings,
             artifacts_dir / "spikes_and_dynamics.png",
-            task_cfg=config.task.model_dump(),
+            input_signals=all_signals,
+            events_sr_rb=spike_recorder_rb.get("events"),
+            nrns_rb=network.nrns_rb,
         )
+        weight_colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
         plot_weight_matrices(
             weights_pre,
             weights_post,
-            colors,
+            weight_colors,
             artifacts_dir / "weight_matrices.png",
         )
 

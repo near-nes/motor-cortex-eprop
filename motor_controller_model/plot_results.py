@@ -1,45 +1,37 @@
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING, List
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
+if TYPE_CHECKING:
+    from .config_schema import TrainingTimings
+    from .signals import TrainingSignals
+
 M1_PHASE_COLORS = {
-    "silent": "#9E9E9E",
     "input": "#2196F3",
     "learning": "#4CAF50",
-    "post": "#795548",
 }
 
 
-def _get_m1_sequence_phases(duration, task_cfg=None):
-    """Return list of (start_ms, end_ms, label, color) for phases within one M1 sequence.
-
-    Args:
-        duration: Duration dict from eprop_reaching_task (must have 'sequence', 'silent_period').
-        task_cfg: Optional task config dict with 'learning_window_ms'.
-    """
-    seq = duration["sequence"]
-    silent = duration.get("silent_period", 0)
-    learning_window = task_cfg.get("learning_window_ms", seq - silent) if task_cfg else seq - silent
-    learning_start = seq - learning_window
-    learning_end = seq
-
+def _get_m1_sequence_phases(timings: TrainingTimings):
+    """Return list of (start_ms, end_ms, label, color) for phases within one M1 sequence."""
+    learning_start = timings.sequence_ms - timings.learning_window
     phases = []
-    if silent > 0:
-        phases.append((0, silent, "silent", M1_PHASE_COLORS["silent"]))
-    if learning_start > silent:
-        phases.append((silent, learning_start, "input", M1_PHASE_COLORS["input"]))
+    if learning_start > 0:
+        phases.append((0, learning_start, "input", M1_PHASE_COLORS["input"]))
     phases.append(
-        (learning_start, learning_end, "learning", M1_PHASE_COLORS["learning"])
+        (learning_start, timings.sequence_ms, "learning", M1_PHASE_COLORS["learning"])
     )
     return phases
 
 
 def draw_m1_sequence_phases(
     axes,
-    duration,
-    task_cfg=None,
+    timings: TrainingTimings,
     window_offset=0,
     alpha=0.07,
     label_phases=True,
@@ -48,8 +40,7 @@ def draw_m1_sequence_phases(
 
     Args:
         axes: Single axis or list of axes.
-        duration: Duration dict from eprop_reaching_task.
-        task_cfg: Optional task config dict with learning_window_ms.
+        timings: TrainingTimings instance.
         window_offset: Time offset of the plotted window (to align phases).
         alpha: Shading transparency.
         label_phases: Whether to add text labels on the top axis.
@@ -57,13 +48,10 @@ def draw_m1_sequence_phases(
     if not isinstance(axes, (list, np.ndarray)):
         axes = [axes]
 
-    seq_with_silence = duration["total_sequence_with_silence"]
-    n_trajectories = duration.get("n_trajectories", 1)
-    phases_template = _get_m1_sequence_phases(duration, task_cfg)
+    phases_template = _get_m1_sequence_phases(timings)
 
-    # Determine how many sequences fit in the window
-    for traj_idx in range(n_trajectories):
-        traj_offset = traj_idx * seq_with_silence + window_offset
+    for traj_idx in range(timings.n_samples):
+        traj_offset = traj_idx * timings.sequence_ms + window_offset
         for start, end, label, color in phases_template:
             abs_start = traj_offset + start
             abs_end = traj_offset + end
@@ -213,22 +201,26 @@ def plot_spikes_and_dynamics(
     events_mm_out,
     nrns_rec,
     n_record,
-    duration,
-    colors,
-    out_prefix,
-    task_cfg=None,
+    timings: TrainingTimings,
+    out_path,
+    input_signals: List[TrainingSignals] | None = None,
+    events_sr_rb=None,
+    nrns_rb=None,
 ):
-    """
-    Plot spikes and all recorded dynamic variables for a simulation run, showing pre- and post-training windows side by side.
+    """Plot spikes and dynamics for a training run (pre- vs post-training).
+
     Args:
-        events_sr: Spike recorder events
-        events_mm_rec: Multimeter events for recurrent neurons
-        events_mm_out: Multimeter events for output neurons
-        nrns_rec: List of recurrent neuron IDs
-        n_record: Number of recorded neurons
-        duration: Dictionary of timing values
-        colors: Color dictionary
-        out_prefix: Prefix for output files
+        events_sr: Spike recorder events for recurrent neurons.
+        events_mm_rec: Multimeter events for recurrent neurons.
+        events_mm_out: Multimeter events for output neurons.
+        nrns_rec: Recurrent neuron IDs (NEST NodeCollection).
+        n_record: Number of recorded neurons.
+        timings: TrainingTimings instance.
+        out_path: Path to save the figure.
+        input_signals: Optional list of TrainingSignals (one per trajectory).
+            When provided, the planner input trajectory is plotted as a row.
+        events_sr_rb: Optional spike recorder events for RBF layer.
+        nrns_rb: Optional RBF neuron IDs (NEST NodeCollection).
     """
 
     def plot_recordable(ax, events, recordable, ylabel, xlims, color_cycle=None):
@@ -266,136 +258,74 @@ def plot_spikes_and_dynamics(
         ax.set_ylabel(ylabel)
         ax.grid(True, linestyle="--", alpha=0.3)
 
-    # Define pre/post windows dynamically:
-    n_trajectories = duration["n_trajectories"]
-    pre_train_window = (0, n_trajectories * duration["total_sequence_with_silence"])
-    post_train_window = (
-        duration["task"] - n_trajectories * duration["total_sequence_with_silence"],
-        duration["task"],
-    )
+    def plot_trajectory(ax, signals, timings, xlims):
+        """Plot the planner input trajectory (rad) for one iteration window."""
+        step_ms = timings.step_ms
+        # Build a single-iteration trajectory by concatenating all trajectory signals
+        one_iter = np.concatenate([sig.input_trajectory for sig in signals])
+        t = np.arange(len(one_iter)) * step_ms
+        # Offset to match the window
+        t = t + xlims[0]
+        ax.plot(t, np.rad2deg(one_iter), lw=1.5, color="#1f77b4")
+        ax.set_ylabel("planner (deg)")
+        ax.grid(True, linestyle="--", alpha=0.3)
+
+    # Pre/post windows: first and last iteration
+    one_iter_ms = timings.n_samples * timings.sequence_ms
+    pre_train_window = (0, one_iter_ms)
+    post_train_window = (timings.task_ms - one_iter_ms, timings.task_ms)
     xlims_list = [pre_train_window, post_train_window]
-    fig, axs = plt.subplots(8, 2, sharex="col", figsize=(6, 12), dpi=300)
 
-    # Color cycles for better distinction
-    rec_colors = [
-        colors.get("blue", "#1f77b4"),
-        colors.get("red", "#d62728"),
-        colors.get("green", "#2ca02c"),
-        colors.get("orange", "#ff7f0e"),
-    ]
-    out_colors = [
-        colors.get("blue", "#1f77b4"),
-        colors.get("red", "#d62728"),
-        colors.get("pink", "#e377c2"),
-    ]
+    has_traj = input_signals is not None
+    has_rb = events_sr_rb is not None and nrns_rb is not None
+    n_extra = int(has_traj) + int(has_rb)
+    n_rows = 8 + n_extra
+    fig, axs = plt.subplots(n_rows, 2, sharex="col", figsize=(6, n_rows * 1.5), dpi=300)
 
-    # Left column: pre-training window
-    plot_spikes(
-        axs[0, 0],
-        events_sr,
-        nrns_rec,
-        r"$z_j$",
-        xlims_list[0],
-        color=colors.get("black", "black"),
-    )
-    plot_recordable(
-        axs[1, 0], events_mm_rec, "V_m", r"$v_j$ (mV)", xlims_list[0], rec_colors
-    )
-    plot_recordable(
-        axs[2, 0],
-        events_mm_rec,
-        "surrogate_gradient",
-        r"$\psi_j$",
-        xlims_list[0],
-        rec_colors,
-    )
-    plot_recordable(
-        axs[3, 0],
-        events_mm_rec,
-        "learning_signal",
-        r"$L_j$ (pA)",
-        xlims_list[0],
-        rec_colors,
-    )
-    plot_recordable(
-        axs[4, 0], events_mm_out, "V_m", r"$v_k$ (mV)", xlims_list[0], out_colors
-    )
-    plot_recordable(
-        axs[5, 0], events_mm_out, "target_signal", r"$y^*_k$", xlims_list[0], out_colors
-    )
-    plot_recordable(
-        axs[6, 0], events_mm_out, "readout_signal", r"$y_k$", xlims_list[0], out_colors
-    )
-    plot_recordable(
-        axs[7, 0],
-        events_mm_out,
-        "error_signal",
-        r"$y_k-y^*_k$",
-        xlims_list[0],
-        out_colors,
-    )
+    rec_colors = ["#1f77b4", "#d62728", "#2ca02c", "#ff7f0e"]
+    out_colors = ["#1f77b4", "#d62728", "#e377c2"]
 
-    # Right column: post-training window
-    plot_spikes(
-        axs[0, 1],
-        events_sr,
-        nrns_rec,
-        r"$z_j$",
-        xlims_list[1],
-        color=colors.get("black", "black"),
-    )
-    plot_recordable(
-        axs[1, 1], events_mm_rec, "V_m", r"$v_j$ (mV)", xlims_list[1], rec_colors
-    )
-    plot_recordable(
-        axs[2, 1],
-        events_mm_rec,
-        "surrogate_gradient",
-        r"$\psi_j$",
-        xlims_list[1],
-        rec_colors,
-    )
-    plot_recordable(
-        axs[3, 1],
-        events_mm_rec,
-        "learning_signal",
-        r"$L_j$ (pA)",
-        xlims_list[1],
-        rec_colors,
-    )
-    plot_recordable(
-        axs[4, 1], events_mm_out, "V_m", r"$v_k$ (mV)", xlims_list[1], out_colors
-    )
-    plot_recordable(
-        axs[5, 1], events_mm_out, "target_signal", r"$y^*_k$", xlims_list[1], out_colors
-    )
-    plot_recordable(
-        axs[6, 1], events_mm_out, "readout_signal", r"$y_k$", xlims_list[1], out_colors
-    )
-    plot_recordable(
-        axs[7, 1],
-        events_mm_out,
-        "error_signal",
-        r"$y_k-y^*_k$",
-        xlims_list[1],
-        out_colors,
-    )
+    for col, xlims in enumerate(xlims_list):
+        row = 0
+        if has_traj:
+            plot_trajectory(axs[row, col], input_signals, timings, xlims)
+            row += 1
+        if has_rb:
+            plot_spikes(axs[row, col], events_sr_rb, nrns_rb, r"$z_{rb}$", xlims)
+            row += 1
+
+        plot_spikes(axs[row, col], events_sr, nrns_rec, r"$z_j$", xlims)
+        plot_recordable(
+            axs[row + 1, col], events_mm_rec, "V_m", r"$v_j$ (mV)", xlims, rec_colors
+        )
+        plot_recordable(
+            axs[row + 2, col], events_mm_rec, "surrogate_gradient", r"$\psi_j$", xlims, rec_colors
+        )
+        plot_recordable(
+            axs[row + 3, col], events_mm_rec, "learning_signal", r"$L_j$ (pA)", xlims, rec_colors
+        )
+        plot_recordable(
+            axs[row + 4, col], events_mm_out, "V_m", r"$v_k$ (mV)", xlims, out_colors
+        )
+        plot_recordable(
+            axs[row + 5, col], events_mm_out, "target_signal", r"$y^*_k$", xlims, out_colors
+        )
+        plot_recordable(
+            axs[row + 6, col], events_mm_out, "readout_signal", r"$y_k$", xlims, out_colors
+        )
+        plot_recordable(
+            axs[row + 7, col], events_mm_out, "error_signal", r"$y_k-y^*_k$", xlims, out_colors
+        )
 
     # Draw M1 sequence phase overlays on both columns
     for col, (win_start, _win_end) in enumerate(xlims_list):
-        col_axes = [axs[row, col] for row in range(8)]
-        draw_m1_sequence_phases(
-            col_axes,
-            duration,
-            task_cfg=task_cfg,
-            window_offset=win_start,
-            label_phases=True,
-        )
+        col_axes = [axs[row, col] for row in range(n_rows)]
+        draw_m1_sequence_phases(col_axes, timings, window_offset=win_start)
 
-    # Set labels and titles
+    # Labels and titles
     axs[0, 0].set_title("Pre-training window", fontsize=12, fontweight="bold")
     axs[0, 1].set_title("Post-training window", fontsize=12, fontweight="bold")
-    for i in range(8):
+    for i in range(n_rows):
         axs[i, 0].label_outer()
         axs[i, 0].tick_params(axis="both", which="major", labelsize=8)
         axs[i, 1].tick_params(axis="both", which="major", labelsize=8)
@@ -411,7 +341,7 @@ def plot_spikes_and_dynamics(
         fontweight="bold",
         y=0.995,
     )
-    fig.savefig(f"{out_prefix}", dpi=300)
+    fig.savefig(out_path, dpi=300)
     plt.close(fig)
 
 
