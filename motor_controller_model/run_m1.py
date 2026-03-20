@@ -1,5 +1,5 @@
 """
-run_m1.py: Script to run M1 training/loading using the new factory structure.
+run_m1.py: Script to run M1 training/loading and standalone inference test.
 """
 
 import argparse
@@ -9,21 +9,155 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import nest
 import numpy as np
+from motor_cortex_eprop.motor_controller_model.m1_network import M1Network
 
 # Ensure package is in path if running as script
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 import structlog
 
-from .config_schema import MotorControllerConfig
+from .config_schema import MotorControllerConfig, TrainingTimings
 from .m1_factory import get_m1_or_train
-from .utils import install_nestml_module, load_spike_data
+from .signals import generate_training_signals
+from .utils import install_nestml_module
 
 _log = structlog.get_logger("m1_train")
 
 
+def run_inference_test(
+    config: MotorControllerConfig,
+    network: M1Network,
+    artifacts_dir: Path,
+    nest_module: str,
+):
+    """Run standalone inference using tracking_neuron_nestml as planner input."""
+    nest.ResetKernel()
+    nest.SetKernelStatus(
+        {
+            "resolution": config.simulation.step,
+            "total_num_virtual_procs": config.simulation.total_num_virtual_procs,
+        }
+    )
+    install_nestml_module(nest_module)
+
+    training_cfg = config.training
+    timings = TrainingTimings.from_config(config)
+    step_ms = timings.step_ms
+    n_trajectories = timings.n_samples
+    # For inference: no input_shift, just sequence_ms per trajectory
+    n_steps_per_seq = timings.n_timesteps_per_sequence
+    sim_time_ms = n_steps_per_seq * n_trajectories * step_ms
+
+    network.build_network(simulation_time_ms=sim_time_ms)
+
+    # Generate signals and build planner trajectory for inference
+    all_signals = [
+        generate_training_signals(
+            spec, training_cfg, step_ms, config.task.input_shift_ms
+        )
+        for spec in training_cfg.trajectories
+    ]
+
+    full_traj = np.concatenate([sig.input_trajectory for sig in all_signals])
+    # Pad trajectory to guarantee it covers the full simulation
+    n_sim_steps = int(sim_time_ms / step_ms) + 1
+    if len(full_traj) < n_sim_steps:
+        full_traj = np.pad(
+            full_traj, (0, n_sim_steps - len(full_traj)), constant_values=full_traj[-1]
+        )
+    sim_steps = len(full_traj)
+
+    n_input = training_cfg.n_input_neurons
+    planner_pos = nest.Create("tracking_neuron_nestml", n_input)
+    nest.SetStatus(
+        planner_pos,
+        {
+            "kp": training_cfg.planner_kp,
+            "base_rate": training_cfg.planner_base_rate,
+            "pos": True,
+            "traj": full_traj.tolist(),
+            "simulation_steps": sim_steps,
+        },
+    )
+
+    planner_neg = nest.Create("tracking_neuron_nestml", n_input)
+    nest.SetStatus(
+        planner_neg,
+        {
+            "kp": training_cfg.planner_kp,
+            "base_rate": training_cfg.planner_base_rate,
+            "pos": False,
+            "traj": full_traj.tolist(),
+            "simulation_steps": sim_steps,
+        },
+    )
+
+    network.connect(planner_pos)
+
+    out_pos, out_neg = network.get_output_pops()
+
+    mm_out = nest.Create(
+        "multimeter",
+        {
+            "record_from": ["readout_signal"],
+            "interval": step_ms,
+            "start": step_ms,
+            "stop": sim_time_ms,
+        },
+    )
+    nest.Connect(mm_out, out_pos + out_neg)
+
+    _log.debug("simulating inference", sim_time_ms=sim_time_ms)
+    nest.Simulate(sim_time_ms)
+
+    # Plot
+    events = mm_out.get("events")
+    idc_pos = events["senders"] == out_pos.tolist()[0]
+    idc_neg = events["senders"] == out_neg.tolist()[0]
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(
+        events["times"][idc_pos],
+        events["readout_signal"][idc_pos],
+        label="Pos Readout",
+        color="blue",
+    )
+    plt.plot(
+        events["times"][idc_neg],
+        events["readout_signal"][idc_neg],
+        label="Neg Readout",
+        color="red",
+    )
+
+    total_seq_ms = n_steps_per_seq * step_ms
+    for i in range(1, n_trajectories):
+        plt.axvline(
+            x=i * total_seq_ms,
+            color="gray",
+            linestyle="--",
+            alpha=0.5,
+            label="Trajectory Boundary" if i == 1 else "",
+        )
+
+    plt.title(f"Standalone Inference Test Output ({n_trajectories} Trajectories)")
+    plt.xlabel("Time (ms)")
+    plt.ylabel("Rate Signal")
+    plt.legend()
+    plt.tight_layout()
+
+    plot_path = artifacts_dir / "standalone_inference_test.png"
+    plt.savefig(plot_path)
+    plt.close()
+    _log.debug(f"inference test complete {plot_path}")
+
+    # Return readout arrays for downstream use
+    return events["readout_signal"][idc_pos], events["readout_signal"][idc_neg]
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Run M1 Network (Spike Input Mode)")
+    parser = argparse.ArgumentParser(
+        description="Run M1 Network Training + Inference Test"
+    )
     parser.add_argument(
         "--force-retrain",
         action="store_true",
@@ -44,165 +178,18 @@ def main():
     )
     args = parser.parse_args()
 
-    # 1. Define Configuration
     config = MotorControllerConfig()
-
-    # 2. Define Training Data
-    base_data_dir = (
-        Path(__file__).resolve().parent / "dataset_motor_training" / "input_ouput_data"
-    )
-
-    if not base_data_dir.exists():
-        _log.debug(f"Error: Dataset directory not found at {base_data_dir}")
-        return
-
-    traj1 = {
-        "input": (
-            str(base_data_dir / "N200_9020_planner_p.dat"),
-            str(base_data_dir / "N200_9020_planner_n.dat"),
-        ),
-        "output": (
-            str(base_data_dir / "N200_9020_mc_m1_p.dat"),
-            str(base_data_dir / "N200_9020_mc_m1_n.dat"),
-        ),
-    }
-
-    traj2 = {
-        "input": (
-            str(base_data_dir / "N200_90140_planner_p.dat"),
-            str(base_data_dir / "N200_90140_planner_n.dat"),
-        ),
-        "output": (
-            str(base_data_dir / "N200_90140_mc_m1_p.dat"),
-            str(base_data_dir / "N200_90140_mc_m1_n.dat"),
-        ),
-    }
-    training_data = [traj1, traj2]
-
     artifacts_dir = args.output_dir
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+
     network = get_m1_or_train(
         config,
-        training_data,
         artifacts_dir=artifacts_dir,
         force_retrain=args.force_retrain,
         nest_module=args.nest_module,
     )
 
-    nest.ResetKernel()
-    nest.SetKernelStatus({"resolution": config.simulation.step})
-    _log.debug(args.nest_module)
-    install_nestml_module(args.nest_module)
-
-    task = config.task
-    step = config.simulation.step
-    n_steps_per_seq = int(round((task.sequence + task.silent_period) / step))
-    n_samples = len(task.trajectory_ids_to_use) * task.n_samples_per_trajectory_to_use
-    sim_time_ms = n_steps_per_seq * n_samples * step + step
-    network.build_network(simulation_time_ms=sim_time_ms)
-
-    # =====================================================================
-    # STANDALONE INFERENCE TEST (Evaluating All Trajectories)
-    # =====================================================================
-    _log.debug(
-        f"\n--- Running Standalone Inference Test on {len(training_data)} Trajectories ---"
-    )
-
-    step_ms = config.simulation.step
-    sequence_ms = config.task.sequence
-    silent_ms = config.task.silent_period
-    total_seq_ms = sequence_ms + silent_ms
-    n_trajectories = len(training_data)
-
-    # A. Figure out how many unique input neurons we have across ALL data
-    all_senders = set()
-    for traj in training_data:
-        pos_data = load_spike_data(traj["input"][0])
-        neg_data = load_spike_data(traj["input"][1])
-        all_senders.update(pos_data[:, 0].astype(int))
-        all_senders.update(neg_data[:, 0].astype(int))
-
-    n_input = len(all_senders)
-    sender_to_idx = {s: i for i, s in enumerate(sorted(all_senders))}
-    spike_times_per_neuron = [[] for _ in range(n_input)]
-
-    # B. Load and offset spikes for each trajectory sequentially
-    for traj_idx, traj in enumerate(training_data):
-        time_offset = traj_idx * total_seq_ms
-
-        pos_data = load_spike_data(traj["input"][0])
-        neg_data = load_spike_data(traj["input"][1])
-
-        for data in [pos_data, neg_data]:
-            for s_id, t in data:
-                # Add the trajectory offset + the silent period padding
-                adjusted_time = t + time_offset + silent_ms
-                spike_times_per_neuron[sender_to_idx[int(s_id)]].append(adjusted_time)
-
-    # C. Create mock Planner neurons
-    mock_planner = nest.Create("spike_generator", n_input)
-    for i, times in enumerate(spike_times_per_neuron):
-        nest.SetStatus(mock_planner[i : i + 1], {"spike_times": sorted(times)})
-
-    # D. Connect to the M1 Network Interface
-    network.connect(mock_planner)
-    out_pos, out_neg = network.get_output_pops()
-
-    sim_time = (n_trajectories * total_seq_ms) + step_ms
-
-    mm_out = nest.Create(
-        "multimeter",
-        {
-            "record_from": ["readout_signal"],
-            "interval": step_ms,
-            "start": step_ms,
-            "stop": sim_time,
-        },
-    )
-    nest.Connect(mm_out, out_pos + out_neg)
-
-    # E. Run Inference
-    _log.debug(f"Simulating inference pass for {sim_time} ms...")
-    nest.Simulate(sim_time)
-
-    # F. Plotting
-    events = mm_out.get("events")
-    idc_pos = events["senders"] == out_pos.tolist()[0]
-    idc_neg = events["senders"] == out_neg.tolist()[0]
-
-    plt.figure(figsize=(10, 4))
-    plt.plot(
-        events["times"][idc_pos],
-        events["readout_signal"][idc_pos],
-        label="Pos Readout",
-        color="blue",
-    )
-    plt.plot(
-        events["times"][idc_neg],
-        events["readout_signal"][idc_neg],
-        label="Neg Readout",
-        color="red",
-    )
-
-    # Add vertical dividers to show where each trajectory starts
-    for i in range(1, n_trajectories):
-        plt.axvline(
-            x=i * total_seq_ms,
-            color="gray",
-            linestyle="--",
-            alpha=0.5,
-            label="Trajectory Boundary" if i == 1 else "",
-        )
-
-    plt.title(f"Standalone Inference Test Output ({n_trajectories} Trajectories)")
-    plt.xlabel("Time (ms)")
-    plt.ylabel("Rate Signal")
-    plt.legend()
-    plt.tight_layout()
-
-    plot_path = artifacts_dir / "standalone_inference_test.png"
-    plt.savefig(plot_path)
-    _log.debug(f"Test complete! Output plotted to: {plot_path}")
+    run_inference_test(config, network, artifacts_dir, args.nest_module)
 
 
 if __name__ == "__main__":
