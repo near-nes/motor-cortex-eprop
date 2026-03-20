@@ -17,12 +17,13 @@ def _get_m1_sequence_phases(duration, task_cfg=None):
 
     Args:
         duration: Duration dict from eprop_reaching_task (must have 'sequence', 'silent_period').
-        task_cfg: Optional task config dict with 'learning_start' and 'learning_end'.
+        task_cfg: Optional task config dict with 'learning_window_ms'.
     """
     seq = duration["sequence"]
     silent = duration.get("silent_period", 0)
-    learning_start = task_cfg.get("learning_start", silent) if task_cfg else silent
-    learning_end = task_cfg.get("learning_end", seq) if task_cfg else seq
+    learning_window = task_cfg.get("learning_window_ms", seq - silent) if task_cfg else seq - silent
+    learning_start = seq - learning_window
+    learning_end = seq
 
     phases = []
     if silent > 0:
@@ -32,8 +33,6 @@ def _get_m1_sequence_phases(duration, task_cfg=None):
     phases.append(
         (learning_start, learning_end, "learning", M1_PHASE_COLORS["learning"])
     )
-    if learning_end < seq:
-        phases.append((learning_end, seq, "post", M1_PHASE_COLORS["post"]))
     return phases
 
 
@@ -50,7 +49,7 @@ def draw_m1_sequence_phases(
     Args:
         axes: Single axis or list of axes.
         duration: Duration dict from eprop_reaching_task.
-        task_cfg: Optional task config dict with learning_start/end.
+        task_cfg: Optional task config dict with learning_window_ms.
         window_offset: Time offset of the plotted window (to align phases).
         alpha: Shading transparency.
         label_phases: Whether to add text labels on the top axis.
