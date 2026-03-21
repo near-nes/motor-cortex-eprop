@@ -4,7 +4,6 @@ m1_factory: Factory for creating/loading M1Network instances.
 
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import structlog
 
@@ -40,10 +39,25 @@ def _stamp_config(config: MotorControllerConfig) -> None:
     config.git_commit = get_git_commit_hash(repo_root)
 
 
+# Fields that do NOT affect trained weights: changing them should not
+# invalidate the cache.  Everything else is assumed to matter.
+_TRAINING_ONLY_EXCLUDE = {
+    "git_commit": True,
+    "recording": True,
+    "plotting": True,
+    "task": {"n_iter", "learning_window_ms", "gradient_batch_size"},
+    "simulation": {"rng_seed", "print_time", "total_num_virtual_procs"},
+}
+
+
 def _check_saved_model(
     config: MotorControllerConfig, artifacts_dir: Path
 ) -> M1Network | None:
-    """Load and return M1Network if saved model matches config, else None."""
+    """Load and return M1Network if saved model matches config, else None.
+
+    Only compares architecture and task/signal fields — training procedure
+    fields (n_iter, plotting, recording, etc.) are excluded.
+    """
     config_file = artifacts_dir / "config.yaml"
     weights_file = artifacts_dir / "trained_weights.npz"
 
@@ -51,9 +65,9 @@ def _check_saved_model(
         return None
 
     saved = MotorControllerConfig.from_yaml(config_file).model_dump(
-        exclude={"git_commit"}
+        exclude=_TRAINING_ONLY_EXCLUDE
     )
-    requested = config.model_dump(exclude={"git_commit"})
+    requested = config.model_dump(exclude=_TRAINING_ONLY_EXCLUDE)
     diffs = [
         f"  {k}: requested={requested[k]!r}, saved={saved[k]!r}"
         for k in requested
@@ -103,14 +117,14 @@ def get_m1_or_raise(
 
 def get_m1_or_train(
     config: MotorControllerConfig,
-    training_data: List[Dict[str, Tuple[str, str]]],
     artifacts_dir: Path,
     nest_module: str,
     force_retrain: bool = False,
 ) -> M1Network:
     """
-    Load a trained M1Network if available, otherwise train a new one. Training REQUIRES resetting kernel.
+    Load a trained M1Network if available, otherwise train a new one.
 
+    Training REQUIRES resetting kernel.
     Does NOT build the NEST network. Caller must call build_network() after kernel setup.
     """
     _stamp_config(config)
@@ -119,6 +133,6 @@ def get_m1_or_train(
         return network
 
     _log.info("training M1 model", artifacts_dir=str(artifacts_dir))
-    network = train_m1(config, training_data, artifacts_dir, nest_module=nest_module)
+    network = train_m1(config, artifacts_dir, nest_module=nest_module)
     config.to_yaml(artifacts_dir / "config.yaml")
     return network
