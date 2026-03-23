@@ -1,4 +1,3 @@
-
 # Compile and install NESTML neuron models for motor controller simulations.
 #
 # Usage:
@@ -14,7 +13,7 @@ import nest
 def compile_nestml_neurons():
     """
     Compile and install the NESTML motor neuron module.
-    
+
     This function generates NEST target code from NESTML files and installs
     the motor_neuron_module for use in simulations.
     """
@@ -22,7 +21,9 @@ def compile_nestml_neurons():
     nestml_target_path = nestml_file_path / "nestml_target"
     nestml_install_path = nestml_file_path / "nestml_install"
 
-    print(f"Generating NEST target code from {nestml_file_path} to {nestml_target_path}")
+    print(
+        f"Generating NEST target code from {nestml_file_path} to {nestml_target_path}"
+    )
 
     generate_nest_target(
         input_path=str(nestml_file_path),

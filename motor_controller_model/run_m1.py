@@ -136,7 +136,9 @@ def run_inference_test(
         axs[1].scatter(
             events_rb["times"][rb_mask],
             events_rb["senders"][rb_mask],
-            s=2, color="black", alpha=0.7,
+            s=2,
+            color="black",
+            alpha=0.7,
         )
     axs[1].set_ylabel(r"$z_{rb}$")
     axs[1].grid(True, linestyle="--", alpha=0.3)
@@ -145,12 +147,14 @@ def run_inference_test(
     axs[2].plot(
         events["times"][idc_pos],
         events["readout_signal"][idc_pos],
-        label="Pos Readout", color="blue",
+        label="Pos Readout",
+        color="blue",
     )
     axs[2].plot(
         events["times"][idc_neg],
         events["readout_signal"][idc_neg],
-        label="Neg Readout", color="red",
+        label="Neg Readout",
+        color="red",
     )
     axs[2].set_ylabel("Rate Signal")
     axs[2].set_xlabel("Time (ms)")
@@ -165,7 +169,8 @@ def run_inference_test(
 
     fig.suptitle(
         f"Standalone Inference Test ({n_trajectories} Trajectories)",
-        fontsize=14, fontweight="bold",
+        fontsize=14,
+        fontweight="bold",
     )
     fig.tight_layout()
 
