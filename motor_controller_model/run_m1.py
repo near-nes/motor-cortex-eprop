@@ -9,7 +9,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import nest
 import numpy as np
-from motor_cortex_eprop.motor_controller_model.m1_network import M1Network
+
+from .m1_network import M1Network
 
 # Ensure package is in path if running as script
 sys.path.append(str(Path(__file__).resolve().parent.parent))
