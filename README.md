@@ -14,11 +14,9 @@ Colors and shapes explicitly encode network roles: labeled input neurons (left),
 
 ## Repository Structure
 
-- [`motor_controller_eprop_tutorial.ipynb`](motor_controller_eprop_tutorial.ipynb) — Jupyter notebook tutorial demonstrating how to use the main modules and run motor control experiments with e-prop. Recommended for new users to get started quickly.
 - [`motor_controller_model/`](motor_controller_model/) — Main package containing all code for running motor control experiments, training spiking networks, analyzing results, and visualizing outputs. See its [README](motor_controller_model/README.md) for detailed usage and options.
 - [`motor_controller_model/dataset_motor_training/`](motor_controller_model/dataset_motor_training/) — Contains trajectory data, spike datasets, and utilities for dataset handling. Includes a [README](motor_controller_model/dataset_motor_training/README.md) describing the dataset format.
 - [`motor_controller_model/nestml_neurons/`](motor_controller_model/nestml_neurons/) — NESTML neuron model files and scripts for compiling custom neuron modules. See its [README](motor_controller_model/nestml_neurons/README.md) for details.
-- [`motor_controller_model/testing_nestml_neurons/`](motor_controller_model/testing_nestml_neurons/) — Scripts and Jupyter notebooks for compiling, installing, and testing custom NESTML neuron models. See its [README](motor_controller_model/testing_nestml_neurons/README.md) for details.
 - `sim_results/` — Output directory for simulation results, plots, and data (created automatically).
 - [`environment.yml`](environment.yml) — Conda/mamba environment specification with all required dependencies.
 - [`pyproject.toml`](pyproject.toml) — Python package configuration and pip dependencies.
@@ -61,11 +59,18 @@ pip install -e .
 - **You must manually install** system-level dependencies:
   - `nest-simulator` (via conda, OS package manager, or [build from source](https://nest-simulator.readthedocs.io/))
 
-### 2. Quick Start
+### 2. Compile NESTML Neurons
+
+```bash
+python -m motor_controller_model.nestml_neurons.compile_nestml_neurons
+```
+
+### 3. Quick Start
 
 Train the M1 network and run a standalone inference test:
 ```bash
-python -m motor_controller_model.run_m1 --output-dir /path/to/artifacts --force-retrain
+python -m motor_controller_model.run_m1 --force-retrain \
+    --nest-module "./motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so"
 ```
 
 When running inside the controller devcontainer, use the `custom_stdp_module` NEST module:
@@ -77,16 +82,11 @@ This trains the network (or loads cached weights if config matches), then runs a
 
 **For detailed usage, command-line options, and parameter sweeps**, see the [motor_controller_model README](motor_controller_model/README.md).
 
-### 3. Tutorial Notebook
-
-Open [`motor_controller_eprop_tutorial.ipynb`](motor_controller_eprop_tutorial.ipynb) for a step-by-step guide to running motor control experiments and using the main features of the repository.
-
 ### 4. Additional Resources
 
 - **Network Architecture:** See [`overview_network.png`](overview_network.png) for a visual summary of the spiking neural network architecture (Figure 1 above)
-- **Dataset Information:** See [`motor_controller_model/dataset_motor_training/README.md`](motor_controller_model/dataset_motor_training/README.md) for details on the dataset format and usage
 - **Package Documentation:** See [`motor_controller_model/README.md`](motor_controller_model/README.md) for detailed API usage
- - **New Options & Diagnostics:** See `motor_controller_model/README.md` -> "New / Important Options" for `task.learning_start`/`task.learning_end`, `input_shift_ms`, and spike-input diagnostic outputs.
+- **Outdated files:** Legacy scripts, tutorials, and the monolithic training script are in [`outdated/`](outdated/).
 
 
 ## License
