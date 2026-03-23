@@ -243,7 +243,7 @@ def train_m1(
         "starting M1 training",
         n_trajectories=timings.n_samples,
         n_iter=timings.n_iter,
-        sim_ms=timings.sim_ms,
+        sim_ms=timings.task_ms,
     )
 
     setup_nest_kernel(config, timings, nest_module)
@@ -251,7 +251,7 @@ def train_m1(
 
     # Build network in training mode
     network = M1Network(config)
-    network.build_network(simulation_time_ms=timings.sim_ms, train=True)
+    network.build_network(simulation_time_ms=timings.task_ms, train=True)
 
     # Wire up training-specific NEST objects
     _create_planner_neurons(network, all_signals, timings, config)
@@ -268,8 +268,8 @@ def train_m1(
     }
 
     # Run simulation
-    _log.debug("simulating", sim_ms=timings.sim_ms)
-    nest.Simulate(timings.sim_ms)
+    _log.debug("simulating", sim_ms=timings.task_ms)
+    nest.Simulate(timings.task_ms)
     network.trained = True
     network.save_weights(artifacts_dir / "trained_weights.npz")
 

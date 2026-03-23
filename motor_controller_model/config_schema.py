@@ -144,10 +144,6 @@ class TrainingTimings(BaseModel):
             self.n_timesteps_per_sequence * self.n_samples * self.n_iter * self.step_ms
         )
 
-    @property
-    def sim_ms(self) -> float:
-        return self.task_ms
-
 
 class RBFConfig(BaseModel):
     """RBF/rb_neuron encoding parameters.
