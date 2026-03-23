@@ -1,4 +1,48 @@
-model basic_neuron:
+model tracking_neuron_nestml:
+    state:
+        out_rate real = 0.0
+        lambda real = 0.0
+        spike_count_out integer = 0
+        current_step integer = 0
+        curr_traj real = 0.0
+        
+    parameters:
+        kp real = 1 # Gain parameter
+        pos boolean = true # Sensitivity of neuron to positive or negative values
+        base_rate real = 0 # Base firing rate
+        simulation_steps integer = 100 # Simulation steps -> computed before calling the neuron model as the length of the time vector
+        traj[simulation_steps] real = 10.0 # Trajectory vector (defined by function GetDesiredTrajectory)
+    
+    input:
+        inh_spikes <- inhibitory spike
+        exc_spikes <- excitatory spike
+        spikes <- spike
+        
+    update:
+        current_step = steps(t)
+        curr_traj = traj[current_step]
+        # Check if neuron is sensitive to the current input sign; if not, set the signal to 0
+        if (((pos == true) and (curr_traj < 0)) or ((pos == false) and (curr_traj) > 0)): 
+            curr_traj = 0
+            
+        
+        # Calculate the new firing rate, proportional to the angle/trajectory
+        out_rate = base_rate + kp * abs(curr_traj)
+        
+        # Update the probability distribution
+        lambda = out_rate * resolution() * 0.001 # Parameter for the Poisson distribution
+        
+        # Now draw randomly according to probability distribution        
+        spike_count_out = random_poisson(lambda)
+        
+        if spike_count_out > 0:
+            emit_spike()
+
+        
+    output:
+        spike
+
+model basic_neuron_nestml:
     parameters:
         kp real = 1.0 # Gain
         pos boolean = true # Sign sensitivity of the neuron
@@ -60,7 +104,7 @@ model basic_neuron:
         if spike_count_out > 0:
             emit_spike()
 
-model rb_neuron:
+model rb_neuron_nestml:
     parameters:
         kp real = 1.0 # Gain
         base_rate Hz = 0 Hz # Base firing rate
