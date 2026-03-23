@@ -19,7 +19,7 @@ dependencies = [
     "nestml",
     "odetoolbox",
     "structlog",
-    "minjerk-dynamics @ git+https://github.com/near-nes/controller.git#subdirectory=complete_control/shared/minjerk"
+    "minjerk-dynamics @ git+https://github.com/pollomarzo/controller.git@m1-delay#subdirectory=complete_control/shared/minjerk"
 ]
 
 [build-system]
