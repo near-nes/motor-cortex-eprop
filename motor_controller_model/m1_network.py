@@ -364,7 +364,7 @@ class M1Network:
             #         "one_to_one",
             #         {
             #             "synapse_model": "static_synapse",
-            #             "weight": [0],  # 0
+            #             "weight": [0],
             #         },
             #     )
             #     self.conns_rec_out.append((s, t, w))
