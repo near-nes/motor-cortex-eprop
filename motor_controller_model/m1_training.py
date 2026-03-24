@@ -29,7 +29,7 @@ def setup_nest_kernel(
     nest.Install(nest_module)
     nest.set(
         eprop_learning_window=timings.learning_window,
-        eprop_reset_neurons_on_update=True,
+        eprop_reset_neurons_on_update=False,
         eprop_update_interval=timings.sequence_ms,
         print_time=config.simulation.print_time,
         resolution=config.simulation.step,
@@ -89,19 +89,20 @@ def _create_planner_neurons(
         },
     )
 
-    planner_neg = nest.Create("tracking_neuron_nestml", n_input)
-    nest.SetStatus(
-        planner_neg,
-        {
-            "kp": tcfg.planner_kp,
-            "base_rate": tcfg.planner_base_rate,
-            "pos": False,
-            "traj": full_traj.tolist(),
-            "simulation_steps": sim_steps,
-        },
-    )
+    # planner_neg = nest.Create("tracking_neuron_nestml", n_input)
+    # nest.SetStatus(
+    #     planner_neg,
+    #     {
+    #         "kp": tcfg.planner_kp,
+    #         "base_rate": tcfg.planner_base_rate,
+    #         "pos": False,
+    #         "traj": full_traj.tolist(),
+    #         "simulation_steps": sim_steps,
+    #     },
+    # )
 
     network.connect(planner_pos)
+    # network.connect(planner_neg)
 
 
 def _create_target_generators(
@@ -264,6 +265,7 @@ def train_m1(
     nrns_out = network.nrns_out_p + network.nrns_out_n
     weights_pre = {
         "rec_rec": get_weights(network.nrns_rec, network.nrns_rec),
+        "rb_rec": get_weights(network.nrns_rb, network.nrns_rec),
         "rec_out": get_weights(network.nrns_rec, nrns_out),
     }
 
@@ -302,11 +304,13 @@ def train_m1(
             nrns_rb=network.nrns_rb,
         )
         weight_colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
+        n_exc = int(config.neurons.n_rec * config.neurons.exc_ratio)
         plot_weight_matrices(
             weights_pre,
             weights_post,
             weight_colors,
             artifacts_dir / "weight_matrices.png",
+            n_exc=n_exc,
         )
 
     return network

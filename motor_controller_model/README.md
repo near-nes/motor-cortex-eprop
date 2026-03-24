@@ -39,7 +39,7 @@ python -m motor_controller_model.run_m1 --force-retrain \
 
 ## Key Configuration Options
 
-- `task.learning_window_ms`: Duration (ms) of the learning window, anchored to the **end** of each update interval. NEST zeros error/target/readout signals before this window.
+- `task.learning_start_ms`: Absolute start time (ms) for learning window within each sequence. NEST zeros error/target/readout signals before this time. E.g., with sequence=1500ms and learning_start_ms=800ms, learning is active from t=800 to t=1500.
 - `task.input_shift_ms`: Temporal delay (ms) to shift planner input backwards, allowing M1 time to compute its output.
 
 ## Results

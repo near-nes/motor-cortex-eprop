@@ -45,7 +45,7 @@ _TRAINING_ONLY_EXCLUDE = {
     "git_commit": True,
     "recording": True,
     "plotting": True,
-    "task": {"n_iter", "learning_window_ms", "gradient_batch_size"},
+    "task": {"n_iter", "learning_start_ms", "gradient_batch_size"},
     "simulation": {"rng_seed", "print_time", "total_num_virtual_procs"},
     "training": {"trajectories", "time_prep_ms", "time_post_ms"},
 }

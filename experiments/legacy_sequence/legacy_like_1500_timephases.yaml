@@ -1,0 +1,20 @@
+simulation:
+  step: 1.0
+
+task:
+  n_iter: 200
+  input_shift_ms: 100.0
+  learning_start_ms: 650.0
+
+training:
+  time_prep_ms: 650.0
+  time_move_ms: 500.0
+  time_post_ms: 350.0
+  trajectories:
+    - init_angle_deg: 90.0
+      target_angle_deg: 140.0
+    - init_angle_deg: 90.0
+      target_angle_deg: 20.0
+
+synapses:
+  w_input: 20.0

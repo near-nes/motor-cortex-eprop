@@ -202,32 +202,50 @@ class M1Network:
     def _connect_for_training(self, step_ms, n_exc):
         """Create plastic e-prop connections for training.
 
-        Uses a single synapse model for all plastic connections (no Dale's law).
-        All recurrent neurons connect to output and receive the learning signal.
-        Weight initialization follows N(0, 1/sqrt(n_pre)) per the NEST e-prop
-        reference example.
+        Uses explicit excitatory/inhibitory recurrent populations with
+        sign-constrained optimizer bounds. Excitatory and inhibitory recurrent
+        projections use separate synapse models. Readout projection and
+        learning-signal feedback are applied to excitatory recurrent neurons.
         """
         syn_cfg = self.config.synapses
         n_rec = self.config.neurons.n_rec
-        n_rb = self.config.rbf.num_centers
-        optimizer_cfg = syn_cfg.syn.optimizer
+
+        nrns_rec_exc = self.nrns_rec[:n_exc]
+        nrns_rec_inh = self.nrns_rec[n_exc:]
+
+        optimizer_exc = syn_cfg.exc.optimizer
+        optimizer_inh = syn_cfg.inh.optimizer
+
+        params_syn_eprop_exc = {
+            "optimizer": {
+                **optimizer_exc.model_dump(),
+                "batch_size": self.config.task.gradient_batch_size,
+            },
+            "average_gradient": syn_cfg.average_gradient,
+        }
+        params_syn_eprop_inh = {
+            "optimizer": {
+                **optimizer_inh.model_dump(),
+                "batch_size": self.config.task.gradient_batch_size,
+            },
+            "weight": syn_cfg.inh.weight,
+            "average_gradient": syn_cfg.average_gradient,
+        }
 
         nest.CopyModel(
             "eprop_synapse_bsshslm_2020",
-            "eprop_synapse_m1",
-            {
-                "optimizer": {
-                    **optimizer_cfg.model_dump(),
-                    "batch_size": self.config.task.gradient_batch_size,
-                },
-                "average_gradient": syn_cfg.average_gradient,
-            },
+            "eprop_synapse_m1_exc",
+            params_syn_eprop_exc,
+        )
+        nest.CopyModel(
+            "eprop_synapse_bsshslm_2020",
+            "eprop_synapse_m1_inh",
+            params_syn_eprop_inh,
         )
 
-        # Weight init: 1 / sqrt(n_pre), mean=0, matching the NEST e-prop
-        # reference example. Works because V_th is set low (0.03 mV).
-        w_std_input = 1.0 / np.sqrt(n_rb)
-        w_std_rec = 1.0 / np.sqrt(n_rec)
+        w_input = syn_cfg.w_input
+        w_rec = syn_cfg.w_rec
+        g = syn_cfg.g
 
         # RB -> Rec
         nest.Connect(
@@ -235,70 +253,80 @@ class M1Network:
             self.nrns_rec,
             "all_to_all",
             {
-                "synapse_model": "eprop_synapse_m1",
+                "synapse_model": "eprop_synapse_m1_exc",
                 "delay": syn_cfg.static_delay,
                 "weight": nest.math.redraw(
-                    nest.random.normal(mean=0.0, std=w_std_input),
-                    min=optimizer_cfg.Wmin,
-                    max=optimizer_cfg.Wmax,
+                    nest.random.normal(mean=w_input, std=w_input * 0.1),
+                    min=optimizer_exc.Wmin,
+                    max=optimizer_exc.Wmax,
                 ),
             },
         )
 
-        # Rec -> Rec (all neurons, no E/I split)
-        nest.Connect(
-            self.nrns_rec,
-            self.nrns_rec,
-            {
-                "rule": "pairwise_bernoulli",
-                "p": syn_cfg.conn_bernoulli_p,
-                "allow_autapses": False,
-            },
-            {
-                "synapse_model": "eprop_synapse_m1",
-                "delay": step_ms,
-                "tau_m_readout": self.config.neurons.out.tau_m,
-                "weight": nest.math.redraw(
-                    nest.random.normal(mean=0.0, std=w_std_rec),
-                    min=optimizer_cfg.Wmin,
-                    max=optimizer_cfg.Wmax,
-                ),
-            },
-        )
+        params_conn_bernoulli = {
+            "rule": "pairwise_bernoulli",
+            "p": syn_cfg.conn_bernoulli_p,
+            "allow_autapses": False,
+        }
 
-        # Rec -> Out (all recurrent neurons)
+        params_syn_rec_exc = {
+            "synapse_model": "eprop_synapse_m1_exc",
+            "delay": step_ms,
+            "tau_m_readout": self.config.neurons.out.tau_m,
+            "weight": nest.math.redraw(
+                nest.random.normal(mean=w_rec, std=w_rec * 0.1),
+                min=optimizer_exc.Wmin,
+                max=optimizer_exc.Wmax,
+            ),
+        }
+        params_syn_rec_inh = {
+            "synapse_model": "eprop_synapse_m1_inh",
+            "delay": step_ms,
+            "tau_m_readout": self.config.neurons.out.tau_m,
+            "weight": nest.math.redraw(
+                nest.random.normal(mean=-w_rec * g, std=g * w_rec * 0.1),
+                min=optimizer_inh.Wmin,
+                max=optimizer_inh.Wmax,
+            ),
+        }
+
+        # Rec_exc -> Rec, Rec_inh -> Rec
+        if len(nrns_rec_exc):
+            nest.Connect(
+                nrns_rec_exc,
+                self.nrns_rec,
+                params_conn_bernoulli,
+                params_syn_rec_exc,
+            )
+        if len(nrns_rec_inh):
+            nest.Connect(
+                nrns_rec_inh,
+                self.nrns_rec,
+                params_conn_bernoulli,
+                params_syn_rec_inh,
+            )
+
+        # Readout projection from excitatory recurrent neurons.
         nrns_out = self.nrns_out_p + self.nrns_out_n
-        nest.Connect(
-            self.nrns_rec,
-            nrns_out,
-            "all_to_all",
-            {
-                "synapse_model": "eprop_synapse_m1",
-                "delay": step_ms,
-                "tau_m_readout": self.config.neurons.out.tau_m,
-                "weight": nest.math.redraw(
-                    nest.random.normal(mean=0.0, std=w_std_rec),
-                    min=optimizer_cfg.Wmin,
-                    max=optimizer_cfg.Wmax,
-                ),
-            },
-        )
+        if len(nrns_rec_exc):
+            nest.Connect(nrns_rec_exc, nrns_out, "all_to_all", params_syn_rec_exc)
 
-        # Feedback: Out -> Rec (learning signal to ALL recurrent neurons)
-        nest.Connect(
-            nrns_out,
-            self.nrns_rec,
-            "all_to_all",
-            {
-                "synapse_model": "eprop_learning_signal_connection_bsshslm_2020",
-                "delay": syn_cfg.feedback_delay,
-                "weight": nest.math.redraw(
-                    nest.random.normal(mean=0.0, std=w_std_rec),
-                    min=optimizer_cfg.Wmin,
-                    max=optimizer_cfg.Wmax,
-                ),
-            },
-        )
+        # Learning-signal feedback to excitatory recurrent neurons.
+        if len(nrns_rec_exc):
+            nest.Connect(
+                nrns_out,
+                nrns_rec_exc,
+                "all_to_all",
+                {
+                    "synapse_model": "eprop_learning_signal_connection_bsshslm_2020",
+                    "delay": syn_cfg.feedback_delay,
+                    "weight": nest.math.redraw(
+                        nest.random.normal(mean=w_rec, std=w_rec * 0.1),
+                        min=optimizer_exc.Wmin,
+                        max=optimizer_exc.Wmax,
+                    ),
+                },
+            )
 
     def _connect_from_saved_weights(self):
         """Inject exact saved topology with static synapses for inference."""

@@ -45,13 +45,13 @@ def run_inference_test(
     timings = TrainingTimings.from_config(config)
     step_ms = timings.step_ms
     n_trajectories = timings.n_samples
-    # For inference: no input_shift, just sequence_ms per trajectory
+    # Run one configured sequence per trajectory.
     n_steps_per_seq = timings.n_timesteps_per_sequence
     sim_time_ms = n_steps_per_seq * n_trajectories * step_ms
 
     network.build_network(simulation_time_ms=sim_time_ms)
 
-    # Generate signals and build planner trajectory for inference
+    # Build planner trajectory from configured training trajectories.
     all_signals = [
         generate_training_signals(
             spec, training_cfg, step_ms, config.task.input_shift_ms
@@ -94,6 +94,7 @@ def run_inference_test(
     )
 
     network.connect(planner_pos)
+    # network.connect(planner_neg)
 
     out_pos, out_neg = network.get_output_pops()
 

@@ -33,13 +33,12 @@ class TaskConfig(BaseModel):
         default=50.0,
         description="Temporal delay to shift M1 target forward (ms)",
     )
-    learning_window_ms: float = Field(
-        default=500.0,
-        description="Duration (ms) of the learning window, anchored to the END of each "
-        "update interval. NEST zeros the error/target/readout signals for the first "
-        "(update_interval - learning_window) ms of each sequence. "
-        "E.g. with sequence=1150ms and learning_window=550ms, learning is active "
-        "during the last 550ms (i.e. from t=600 to t=1150 within each sequence).",
+    learning_start_ms: float = Field(
+        default=600.0,
+        description="Absolute start time (ms) for learning window within each sequence. "
+        "NEST zeros the error/target/readout signals before this time. "
+        "E.g. with sequence=1150ms and learning_start_ms=600ms, learning is active "
+        "from t=600 to t=1150 within each sequence.",
     )
 
 
@@ -114,15 +113,12 @@ class TrainingTimings(BaseModel):
         sequence_ms = (
             training.time_prep_ms + training.time_move_ms + training.time_post_ms
         )
-        learning_window = min(task.learning_window_ms, sequence_ms)
-        expected_lw = sequence_ms - task.input_shift_ms
-        if learning_window != expected_lw:
+        learning_window = sequence_ms - task.learning_start_ms
+        if learning_window <= 0:
             _log.warning(
-                "learning_window_ms differs from sequence_ms - input_shift_ms; "
-                "the network may be penalized during the observation period",
-                learning_window_ms=learning_window,
-                expected=expected_lw,
-                input_shift_ms=task.input_shift_ms,
+                "learning_start_ms is at or past the end of sequence; "
+                "learning window will be empty or invalid",
+                learning_start_ms=task.learning_start_ms,
                 sequence_ms=sequence_ms,
             )
         return cls(
@@ -173,7 +169,7 @@ class RBFConfig(BaseModel):
         default=10.0, description="Size of the sliding window in ms"
     )
     sdev_hz: float = Field(
-        default=1500.0,
+        default=3600.0,
         description="Gaussian width for rb_neurons (Hz). Controls selectivity: "
         "smaller values make each center respond more narrowly to its preferred input rate.",
     )
@@ -184,10 +180,7 @@ class RBFConfig(BaseModel):
 
 
 class RecurrentNeuronConfig(BaseModel):
-    """Recurrent neuron parameters.
-
-    Defaults match the NEST e-prop reference example
-    """
+    """Recurrent neuron parameters."""
 
     C_m: float = Field(default=250.0, description="Membrane capacitance (pF)")
     c_reg: float = Field(default=300.0, description="Regularization constant")
@@ -204,7 +197,7 @@ class RecurrentNeuronConfig(BaseModel):
     t_ref: float = Field(default=2.0, description="Refractory period (ms)")
     tau_m: float = Field(default=20.0, description="Membrane time constant (ms)")
     V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
-    V_th: float = Field(default=0.03, description="Spike threshold (mV)")
+    V_th: float = Field(default=20.0, description="Spike threshold (mV)")
 
 
 class OutputNeuronConfig(BaseModel):
@@ -242,7 +235,7 @@ class OptimizerConfig(BaseModel):
     type: Literal["gradient_descent"] = Field(
         default="gradient_descent", description="Optimizer type"
     )
-    eta: float = Field(default=1e-4, description="Learning rate for optimizer")
+    eta: float = Field(default=0.01, description="Learning rate for optimizer")
     Wmin: float = Field(description="Minimum synaptic weight (pA)")
     Wmax: float = Field(description="Maximum synaptic weight (pA)")
 
@@ -251,7 +244,18 @@ class ExcSynapseConfig(BaseModel):
     """Excitatory synapse parameters."""
 
     optimizer: OptimizerConfig = Field(
-        default_factory=lambda: OptimizerConfig(Wmin=-1000.0, Wmax=1000.0)
+        default_factory=lambda: OptimizerConfig(Wmin=0.0, Wmax=1000.0)
+    )
+
+
+class InhSynapseConfig(BaseModel):
+    """Inhibitory synapse parameters."""
+
+    optimizer: OptimizerConfig = Field(
+        default_factory=lambda: OptimizerConfig(Wmin=-1000.0, Wmax=0.0)
+    )
+    weight: float = Field(
+        default=-400.0, description="Initial inhibitory synaptic weight (pA)"
     )
 
 
@@ -279,7 +283,8 @@ class SynapsesConfig(BaseModel):
     receptor_type: int = Field(
         default=2, description="Receptor type for rate target synapses"
     )
-    syn: ExcSynapseConfig = Field(default_factory=ExcSynapseConfig)
+    exc: ExcSynapseConfig = Field(default_factory=ExcSynapseConfig)
+    inh: InhSynapseConfig = Field(default_factory=InhSynapseConfig)
 
 
 class MultimeterRecConfig(BaseModel):

@@ -6,8 +6,8 @@ simulation:
 task:
   gradient_batch_size: 1
   n_iter: 200
-  input_shift_ms: 50.0
-  learning_window_ms: 500.0
+  input_shift_ms: 100.0
+  learning_start_ms: 650.0
 training:
   trajectories:
   - init_angle_deg: 90.0
@@ -20,9 +20,9 @@ training:
   m1_kp: 2000.0
   m1_base_rate: 0.0
   inertia: 0.00189
-  time_prep_ms: 50.0
+  time_prep_ms: 650.0
   time_move_ms: 500.0
-  time_post_ms: 0.0
+  time_post_ms: 350.0
 rbf:
   num_centers: 20
   desired_min_rate: 0.0
@@ -30,7 +30,7 @@ rbf:
   kp: 1000.0
   base_rate: 0.0
   buffer_size: 10.0
-  sdev_hz: 1500.0
+  sdev_hz: 3600.0
   max_peak_rate_hz: 800.0
 neurons:
   n_rec: 300
@@ -48,7 +48,7 @@ neurons:
     t_ref: 2.0
     tau_m: 20.0
     V_m: 0.0
-    V_th: 0.03
+    V_th: 20.0
   out:
     C_m: 250.0
     E_L: 0.0
@@ -67,12 +67,19 @@ synapses:
   feedback_delay: 1.0
   rate_target_delay: 1.0
   receptor_type: 2
-  syn:
+  exc:
     optimizer:
       type: gradient_descent
-      eta: 0.0001
-      Wmin: -1000.0
+      eta: 0.01
+      Wmin: 0.0
       Wmax: 1000.0
+  inh:
+    optimizer:
+      type: gradient_descent
+      eta: 0.01
+      Wmin: -1000.0
+      Wmax: 0.0
+    weight: -400.0
 recording:
   n_record: 2
   n_record_w: 5
@@ -92,4 +99,4 @@ recording:
     - error_signal
 plotting:
   do_plotting: true
-git_commit: 0084d07beb767755a00252537da911b89614c5fa
+git_commit: 995069dd0b58cc81c47d3ec74c61672c646af5e1
