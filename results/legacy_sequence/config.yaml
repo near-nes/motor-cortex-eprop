@@ -99,4 +99,4 @@ recording:
     - error_signal
 plotting:
   do_plotting: true
-git_commit: 544fcc3def6c2feb43441cf7d4926aa711516d9e
+git_commit: b35e16653d163c3603834e416d7dd324fabe1471

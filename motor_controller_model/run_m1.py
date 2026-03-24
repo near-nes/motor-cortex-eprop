@@ -32,6 +32,8 @@ def run_inference_test(
     nest_module: str,
 ):
     """Run standalone inference using tracking_neuron_nestml as planner input."""
+    timings = TrainingTimings.from_config(config)
+
     nest.ResetKernel()
     nest.SetKernelStatus(
         {
@@ -39,10 +41,18 @@ def run_inference_test(
             "total_num_virtual_procs": config.simulation.total_num_virtual_procs,
         }
     )
+    # Keep kernel-level e-prop settings explicit so inference is independent
+    # of whether training was run earlier in the same process.
+    # Note: we set the learning window to the full sequence duration for the inference test,
+    # which avoid any zeroing of readout/error/target signals that would occur if the window was shorter than the sequence.
+    nest.set(
+        eprop_learning_window=timings.sequence_ms,  # Full sequence for inference test
+        eprop_reset_neurons_on_update=False,
+        eprop_update_interval=timings.sequence_ms,
+    )
     install_nestml_module(nest_module)
 
     training_cfg = config.training
-    timings = TrainingTimings.from_config(config)
     step_ms = timings.step_ms
     n_trajectories = timings.n_samples
     # Run one configured sequence per trajectory.
@@ -112,6 +122,9 @@ def run_inference_test(
     sr_rb = nest.Create("spike_recorder", {"start": step_ms, "stop": sim_time_ms})
     nest.Connect(network.nrns_rb, sr_rb)
 
+    sr_rec = nest.Create("spike_recorder", {"start": step_ms, "stop": sim_time_ms})
+    nest.Connect(network.nrns_rec, sr_rec)
+
     _log.debug("simulating inference", sim_time_ms=sim_time_ms)
     nest.Simulate(sim_time_ms)
 
@@ -120,8 +133,9 @@ def run_inference_test(
     idc_pos = events["senders"] == out_pos.tolist()[0]
     idc_neg = events["senders"] == out_neg.tolist()[0]
     events_rb = sr_rb.get("events")
+    events_rec = sr_rec.get("events")
 
-    fig, axs = plt.subplots(3, 1, sharex=True, figsize=(10, 8), dpi=300)
+    fig, axs = plt.subplots(4, 1, sharex=True, figsize=(10, 10), dpi=300)
 
     # Row 0: planner input trajectory
     one_iter = np.concatenate([sig.input_trajectory for sig in all_signals])
@@ -144,23 +158,37 @@ def run_inference_test(
     axs[1].set_ylabel(r"$z_{rb}$")
     axs[1].grid(True, linestyle="--", alpha=0.3)
 
-    # Row 2: readout signals
-    axs[2].plot(
+    # Row 2: M1 recurrent spike raster
+    rec_ids = network.nrns_rec.tolist()
+    rec_mask = np.isin(events_rec["senders"], rec_ids)
+    if np.any(rec_mask):
+        axs[2].scatter(
+            events_rec["times"][rec_mask],
+            events_rec["senders"][rec_mask],
+            s=2,
+            color="black",
+            alpha=0.7,
+        )
+    axs[2].set_ylabel(r"$z_{rec}$")
+    axs[2].grid(True, linestyle="--", alpha=0.3)
+
+    # Row 3: readout signals
+    axs[3].plot(
         events["times"][idc_pos],
         events["readout_signal"][idc_pos],
         label="Pos Readout",
         color="blue",
     )
-    axs[2].plot(
+    axs[3].plot(
         events["times"][idc_neg],
         events["readout_signal"][idc_neg],
         label="Neg Readout",
         color="red",
     )
-    axs[2].set_ylabel("Rate Signal")
-    axs[2].set_xlabel("Time (ms)")
-    axs[2].legend()
-    axs[2].grid(True, linestyle="--", alpha=0.3)
+    axs[3].set_ylabel("Rate Signal")
+    axs[3].set_xlabel("Time (ms)")
+    axs[3].legend()
+    axs[3].grid(True, linestyle="--", alpha=0.3)
 
     # Trajectory boundaries
     total_seq_ms = n_steps_per_seq * step_ms
