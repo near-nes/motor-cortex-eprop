@@ -193,12 +193,24 @@ def main():
         action="store_true",
         help="Force retraining even if cache exists",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Path to experiment YAML config (default: built-in MotorControllerConfig defaults)",
+    )
     default_artifacts = Path(__file__).resolve().parent.parent / "results"
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=default_artifacts,
         help=f"Directory to save artifacts (default: {default_artifacts})",
+    )
+    parser.add_argument(
+        "--run-name",
+        type=str,
+        default=None,
+        help="Optional run subdirectory name created inside --output-dir",
     )
     parser.add_argument(
         "--nest-module",
@@ -208,8 +220,12 @@ def main():
     )
     args = parser.parse_args()
 
-    config = MotorControllerConfig()
-    artifacts_dir = args.output_dir
+    if args.config is not None:
+        config = MotorControllerConfig.from_yaml(args.config)
+    else:
+        config = MotorControllerConfig()
+
+    artifacts_dir = args.output_dir / args.run_name if args.run_name else args.output_dir
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     network = get_m1_or_train(

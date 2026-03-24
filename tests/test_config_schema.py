@@ -13,12 +13,22 @@ from motor_controller_model.config_schema import MotorControllerConfig
 
 def test_config_loading():
     """Test loading the config.yaml file with Pydantic validation."""
-    config_path = (
-        Path(__file__).parent.parent
-        / "motor_controller_model"
-        / "config"
-        / "config.yaml"
-    )
+    repo_root = Path(__file__).parent.parent
+    candidate_paths = [
+        repo_root / "motor_controller_model" / "config" / "config.yaml",
+        repo_root
+        / "experiments"
+        / "legacy_sequence"
+        / "legacy_like_1500_timephases.yaml",
+        repo_root / "results" / "legacy_sequence" / "config.yaml",
+    ]
+
+    config_path = next((p for p in candidate_paths if p.exists()), None)
+    if config_path is None:
+        raise FileNotFoundError(
+            "No valid config YAML found in expected locations: "
+            + ", ".join(str(p) for p in candidate_paths)
+        )
 
     print(f"Loading config from: {config_path}")
 

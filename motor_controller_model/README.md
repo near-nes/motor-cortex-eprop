@@ -35,6 +35,20 @@ python -m motor_controller_model.run_m1 --force-retrain \
     --nest-module "./motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so"
 ```
 
+Run from an experiment YAML (single general runner):
+```bash
+python -m motor_controller_model.run_m1 \
+    --config experiments/legacy_sequence/legacy_like_1500_timephases.yaml \
+    --output-dir results \
+    --run-name legacy_sequence \
+    --force-retrain \
+    --nest-module "./motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so"
+```
+
+Notes:
+- `--config` is optional; if omitted, built-in defaults are used (backward compatible).
+- `--run-name` is optional; if set, artifacts are saved under `--output-dir/<run-name>`.
+
 
 
 ## Key Configuration Options
