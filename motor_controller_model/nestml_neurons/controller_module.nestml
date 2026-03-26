@@ -1,0 +1,162 @@
+model tracking_neuron_nestml:
+    state:
+        out_rate real = 0.0
+        lambda real = 0.0
+        spike_count_out integer = 0
+        current_step integer = 0
+        curr_traj real = 0.0
+        
+    parameters:
+        kp real = 1 # Gain parameter
+        pos boolean = true # Sensitivity of neuron to positive or negative values
+        base_rate real = 0 # Base firing rate
+        simulation_steps integer = 100 # Simulation steps -> computed before calling the neuron model as the length of the time vector
+        traj[simulation_steps] real = 10.0 # Trajectory vector (defined by function GetDesiredTrajectory)
+    
+    input:
+        inh_spikes <- inhibitory spike
+        exc_spikes <- excitatory spike
+        spikes <- spike
+        
+    update:
+        current_step = steps(t)
+        curr_traj = traj[current_step]
+        # Check if neuron is sensitive to the current input sign; if not, set the signal to 0
+        if (((pos == true) and (curr_traj < 0)) or ((pos == false) and (curr_traj) > 0)): 
+            curr_traj = 0
+            
+        
+        # Calculate the new firing rate, proportional to the angle/trajectory
+        out_rate = base_rate + kp * abs(curr_traj)
+        
+        # Update the probability distribution
+        lambda = out_rate * resolution() * 0.001 # Parameter for the Poisson distribution
+        
+        # Now draw randomly according to probability distribution        
+        spike_count_out = random_poisson(lambda)
+        
+        if spike_count_out > 0:
+            emit_spike()
+
+        
+    output:
+        spike
+
+model basic_neuron_nestml:
+    parameters:
+        kp real = 1.0 # Gain
+        pos boolean = true # Sign sensitivity of the neuron
+        base_rate Hz = 0 Hz # Base firing rate
+        buffer_size ms = 100 ms # Size of the sliding window
+        simulation_steps integer = 1000 # Number of simulation steps (simulation_time/resolution())
+    
+    state:
+        in_rate Hz = 0 Hz # Input firing rate: to be computed from spikes
+        out_rate Hz = 0 Hz # Output firing rate: defined accordingly to the input firing rate
+        spike_count_in real = 0.0 # Total incoming spikes (both excitatory and inhibitory)
+        spike_count_out integer = 0 # Outgoing spikes
+        tick integer = 0 # Tick 
+        lambda_poisson real = 0 # Parameter of the Poisson distribution defining generator behavior
+        spikes_buffer[simulation_steps] real = 0 # Buffer for incoming spikes
+    
+    internals:
+        res ms = resolution()
+        window_counts integer = steps(buffer_size) # Number of ticks corresponding to the window size
+        
+    input: 
+        spikes <- spike
+    
+    output:
+        spike
+    
+    update:
+        tick = steps(t)
+        #print("Tick: {tick}\n")
+        # Save the weight of the synapse into the buffer
+        spikes_buffer[tick] = spikes
+
+        # Total weighted net input (positive and negative): Spikes in the previous 100 ms
+        i integer = 0
+        index integer = 0
+        spike_count_in = 0
+
+        for i in 0 ... window_counts step 1:
+            index = tick - i
+            if (index >= 0 and spikes_buffer[index] !=0):
+                spike_count_in += spikes_buffer[index]
+    
+        # Check if neuron is sensitive to positive or negative signals
+        if ((spike_count_in<0 and pos == True) or (spike_count_in > 0 and pos == False)):
+            spike_count_in = 0
+         
+        # Compute input and output firing rate
+        in_rate = (1000.0*abs(spike_count_in))/buffer_size # Compute the input firing rate
+        out_rate = base_rate + kp * in_rate # Compute the output firing rate
+        
+
+        # Set the new parameter for the Poisson distribution
+        lambda_poisson = out_rate * resolution() * 0.001
+        
+        # Now draw randomly according to probability distribution        
+        spike_count_out = random_poisson(lambda_poisson)
+
+        # If probability not null, emit spike
+        if spike_count_out > 0:
+            emit_spike()
+
+model rb_neuron_nestml:
+    parameters:
+        kp real = 1.0 # Gain
+        base_rate Hz = 0 Hz # Base firing rate
+        max_peak_rate Hz = 500 Hz # Maximum peak output firing rate
+        buffer_size ms = 100 ms # Size of the sliding window
+        simulation_steps integer = 1000 # Number of simulation steps (simulation_time/resolution())
+        sdev real = 1.0 # Parameter for the RBF
+        desired Hz = 1.0 Hz # Desired input frequency (to be compared to actual input rate)
+    
+    state:
+        in_rate Hz = 0 Hz # Input firing rate: to be computed from spikes
+        out_rate Hz = 0 Hz # Output firing rate: defined accordingly to the input firing rate
+        spike_count_in real = 0.0 # Total incoming spikes (both excitatory and inhibitory)
+        spike_count_out integer = 0 # Outgoing spikes
+        tick integer = 0 # Tick 
+        lambda_poisson real = 0 # Parameter of the Poisson distribution defining generator behavior
+        spikes_buffer[simulation_steps] real = 0 # Buffer for incoming spikes
+    
+    internals:
+        res ms = resolution()
+        window_counts integer = steps(buffer_size) # Number of ticks corresponding to the window size
+        
+    input: 
+        spikes <- spike
+    
+    output:
+        spike
+    
+    update:
+        tick = steps(t)
+        
+        # Save the weight of the synapse into the buffer
+        spikes_buffer[tick] = spikes
+        
+        # Total weighted net input (positive and negative): Spikes in the previous 100 ms
+        index integer = 0
+        spike_count_in = 0
+        i integer = 0
+        for i in 0 ... window_counts step 1:
+            index = tick - i
+            if (index >= 0 and spikes_buffer[index] !=0):
+                spike_count_in += spikes_buffer[index]
+            
+        # Compute input and output firing rate
+        in_rate = (kp * spike_count_in)/buffer_size # Compute the input firing rate
+        out_rate = base_rate + max_peak_rate * exp(-((desired - in_rate) / sdev)**2) # Compute the output firing rate
+        
+        # Set the new parameter for the Poisson distribution
+        lambda_poisson = out_rate * resolution() * 0.001
+        
+        spike_count_out = random_poisson(lambda_poisson)
+        
+        # If probability not null, emit spike
+        if spike_count_out > 0:
+            emit_spike()

@@ -1,0 +1,23 @@
+name: motor-controller
+channels:
+- conda-forge
+- nodefaults
+dependencies:
+- python
+- pip
+- ipykernel
+- pydantic>=2.0
+- pyyaml
+- nest-simulator==3.7
+- cxx-compiler
+- boost
+- boost-cpp
+- libboost
+- cmake
+- make
+- gsl
+- pygsl
+- pip:
+  - nestml
+  - odetoolbox
+  - git+https://github.com/near-nes/controller.git@eprop-m1#subdirectory=complete_control/interfaces
