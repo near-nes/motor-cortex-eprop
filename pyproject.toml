@@ -10,16 +10,17 @@ requires-python = ">=3.8"
 dependencies = [
     "numpy",
     "matplotlib",
-    "seaborn",
     "pandas",
     "pyyaml",
     "pydantic>=2.0",
     "h5py",
-    "statsmodels",
-    "nestml",
-    "odetoolbox",
     "structlog",
-    "minjerk-dynamics @ git+https://github.com/near-nes/controller.git#subdirectory=complete_control/shared/minjerk"
+]
+
+[project.optional-dependencies]
+standalone = [
+    "nestml",
+    "minjerk-dynamics @ git+https://github.com/near-nes/controller.git#subdirectory=complete_control/shared/minjerk",
 ]
 
 [build-system]

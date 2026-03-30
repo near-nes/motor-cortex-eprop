@@ -35,7 +35,7 @@ mamba env create -f environment.yml
 mamba activate motor-controller
 
 # Install the package in editable mode
-pip install -e .
+pip install -e ".[standalone]"
 ```
 
 - Uses [`environment.yml`](environment.yml) to install all dependencies including `nest-simulator`
@@ -52,7 +52,7 @@ python -m venv venv
 source venv/bin/activate
 
 # Install the package with Python dependencies
-pip install -e .
+pip install -e ".[standalone]"
 ```
 
 - Python dependencies are listed in [`pyproject.toml`](pyproject.toml) and installed automatically
