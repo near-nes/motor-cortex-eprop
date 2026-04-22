@@ -1,5 +1,5 @@
 """
-Test script to verify Pydantic config schema works with the existing YAML file.
+Test script to verify Pydantic config schema works.
 """
 
 from pathlib import Path
@@ -8,54 +8,33 @@ from motor_controller_model.config_schema import MotorControllerConfig
 
 
 def test_config_loading():
-    """Test loading the config.yaml file with Pydantic validation."""
-    config_path = (
-        Path(__file__).parent.parent
-        / "src"
-        / "motor_controller_model"
-        / "config"
-        / "config.yaml"
-    )
+    """Test loading and saving configuration via Pydantic validation."""
+    # Generate a default config and test round-trip serialization
+    config = MotorControllerConfig()
+    config_path = Path("/tmp/test_m1_config.yaml")
+    config.to_yaml(config_path)
 
-    print(f"Loading config from: {config_path}")
+    # Load config using Pydantic
+    loaded = MotorControllerConfig.from_yaml(config_path)
 
-    try:
-        # Load config using Pydantic
-        config = MotorControllerConfig.from_yaml(str(config_path))
+    assert loaded.simulation.step == config.simulation.step
+    assert loaded.neurons.n_rec == config.neurons.n_rec
+    assert loaded.rbf.num_centers == config.rbf.num_centers
+    assert loaded.synapses.syn.optimizer.eta == config.synapses.syn.optimizer.eta
+    assert loaded.synapses.static_delay == config.synapses.static_delay
+    assert loaded.synapses.feedback_delay == config.synapses.feedback_delay
+    assert loaded.synapses.rate_target_delay == config.synapses.rate_target_delay
 
-        print("✓ Config loaded successfully!")
-        print(f"\nConfig validation passed. Sample values:")
-        print(f"  - Simulation step: {config.simulation.step} ms")
-        print(f"  - Number of recurrent neurons: {config.neurons.n_rec}")
-        print(f"  - RBF centers: {config.rbf.num_centers}")
-        print(f"  - Excitatory learning rate: {config.synapses.exc.optimizer.eta}")
-        print(f"  - Static delay: {config.synapses.static_delay} ms")
-        print(f"  - Feedback delay: {config.synapses.feedback_delay} ms")
-        print(f"  - Rate target delay: {config.synapses.rate_target_delay} ms")
+    # Test converting back to dict
+    config_dict = config.to_dict()
+    assert isinstance(config_dict, dict)
+    assert "simulation" in config_dict
 
-        # Test converting back to dict
-        config_dict = config.to_dict()
-        print(
-            f"\n✓ Successfully converted to dict with {len(config_dict)} top-level keys"
-        )
+    # Test modifying values
+    config.neurons.n_rec = 500
+    config.synapses.syn.optimizer.eta = 0.05
+    assert config.neurons.n_rec == 500
+    assert config.synapses.syn.optimizer.eta == 0.05
 
-        # Test modifying values
-        config.neurons.n_rec = 500
-        config.synapses.exc.optimizer.eta = 0.05
-        print(f"\n✓ Successfully modified values:")
-        print(f"  - New n_rec: {config.neurons.n_rec}")
-        print(f"  - New learning rate: {config.synapses.exc.optimizer.eta}")
-
-        return True
-
-    except Exception as e:
-        print(f"✗ Error loading config: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-if __name__ == "__main__":
-    success = test_config_loading()
-    exit(0 if success else 1)
+    # Cleanup
+    config_path.unlink(missing_ok=True)

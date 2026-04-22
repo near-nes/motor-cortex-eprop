@@ -187,7 +187,7 @@ def main():
         action="store_true",
         help="Force retraining even if cache exists",
     )
-    default_artifacts = Path(__file__).resolve().parent.parent / "results"
+    default_artifacts = Path(__file__).resolve().parent.parent.parent / "results"
     parser.add_argument(
         "--output-dir",
         type=Path,
