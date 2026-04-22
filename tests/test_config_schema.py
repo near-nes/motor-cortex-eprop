@@ -2,11 +2,7 @@
 Test script to verify Pydantic config schema works with the existing YAML file.
 """
 
-import sys
 from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from motor_controller_model.config_schema import MotorControllerConfig
 
@@ -15,6 +11,7 @@ def test_config_loading():
     """Test loading the config.yaml file with Pydantic validation."""
     config_path = (
         Path(__file__).parent.parent
+        / "src"
         / "motor_controller_model"
         / "config"
         / "config.yaml"
