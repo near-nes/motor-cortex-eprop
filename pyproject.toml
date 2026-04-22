@@ -19,12 +19,12 @@ dependencies = [
     "pydantic>=2.0",
     "h5py",
     "structlog",
+    "minjerk-dynamics"
 ]
 
 [project.optional-dependencies]
 standalone = [
     "nestml",
-    "minjerk-dynamics @ git+https://github.com/near-nes/controller.git#subdirectory=complete_control/shared/minjerk",
 ]
 notebook = ["jupyterlab"]
 dev = ["pytest"]
