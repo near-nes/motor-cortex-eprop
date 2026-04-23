@@ -1,5 +1,6 @@
 simulation:
   step: 1.0
+  total_num_virtual_procs: 4
 
 task:
   n_iter: 200

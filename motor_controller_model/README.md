@@ -49,6 +49,16 @@ Notes:
 - `--config` is optional; if omitted, built-in defaults are used (backward compatible).
 - `--run-name` is optional; if set, artifacts are saved under `--output-dir/<run-name>`.
 
+### Parameter Sweeps
+
+Use the sweep runner for config-driven sweeps with one run directory per trial:
+```bash
+python -m motor_controller_model.sweep \
+    --spec experiments/legacy_sequence/legacy_like_1500_timephases_sweep.yaml
+```
+
+The sweep runner writes a timestamped root directory containing per-run configs, a JSONL manifest, and a summary file. For Slurm, point each array task at the same spec and pass `--task-index $SLURM_ARRAY_TASK_ID` so local testing and cluster execution stay identical.
+
 
 
 ## Key Configuration Options

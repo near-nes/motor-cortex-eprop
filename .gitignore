@@ -31,3 +31,8 @@ motor_controller_model/testing_nestml_neurons/report/
 
 # Ignore environment files
 venv/
+
+# Keep only results/legacy_sequence under version control.
+results/*
+!results/legacy_sequence/
+!results/legacy_sequence/**

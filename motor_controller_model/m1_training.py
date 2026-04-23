@@ -17,6 +17,7 @@ from .plot_results import (
     plot_weight_matrices,
 )
 from .signals import TrainingSignals, generate_training_signals
+from .utils import install_nestml_module
 
 _log = structlog.get_logger("m1_train")
 
@@ -26,7 +27,7 @@ def setup_nest_kernel(
 ):
     """Reset NEST and configure kernel for M1 training."""
     nest.ResetKernel()
-    nest.Install(nest_module)
+    install_nestml_module(nest_module)
     nest.set(
         eprop_learning_window=timings.learning_window,
         eprop_reset_neurons_on_update=False,
