@@ -1,7 +1,7 @@
 simulation:
   rng_seed: 1234
   print_time: false
-  total_num_virtual_procs: 16
+  total_num_virtual_procs: 4
   step: 1.0
 task:
   gradient_batch_size: 1
@@ -99,4 +99,4 @@ recording:
     - error_signal
 plotting:
   do_plotting: true
-git_commit: b35e16653d163c3603834e416d7dd324fabe1471
+git_commit: 7c80fcf56384daf7f5000cd8ed228f0c6cb25e31
