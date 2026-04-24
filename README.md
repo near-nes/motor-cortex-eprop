@@ -14,50 +14,32 @@ Colors and shapes explicitly encode network roles: labeled input neurons (left),
 
 ## Repository Structure
 
-- [`motor_controller_model/`](motor_controller_model/) — Main package containing all code for running motor control experiments, training spiking networks, analyzing results, and visualizing outputs. See its [README](motor_controller_model/README.md) for detailed usage and options.
-- [`motor_controller_model/dataset_motor_training/`](motor_controller_model/dataset_motor_training/) — Contains trajectory data, spike datasets, and utilities for dataset handling. Includes a [README](motor_controller_model/dataset_motor_training/README.md) describing the dataset format.
-- [`motor_controller_model/nestml_neurons/`](motor_controller_model/nestml_neurons/) — NESTML neuron model files and scripts for compiling custom neuron modules. See its [README](motor_controller_model/nestml_neurons/README.md) for details.
+- [`src/motor_controller_model/`](src/motor_controller_model/) — Main package containing all code for running motor control experiments, training spiking networks, analyzing results, and visualizing outputs. See its [README](src/motor_controller_model/README.md) for detailed usage and options.
+- [`src/motor_controller_model/dataset_motor_training/`](src/motor_controller_model/dataset_motor_training/) — Contains trajectory data, spike datasets, and utilities for dataset handling. Includes a [README](src/motor_controller_model/dataset_motor_training/README.md) describing the dataset format.
+- [`src/motor_controller_model/nestml_neurons/`](src/motor_controller_model/nestml_neurons/) — NESTML neuron model files and scripts for compiling custom neuron modules. See its [README](src/motor_controller_model/nestml_neurons/README.md) for details.
 - `sim_results/` — Output directory for simulation results, plots, and data (created automatically).
-- [`environment.yml`](environment.yml) — Conda/mamba environment specification with all required dependencies.
 - [`pyproject.toml`](pyproject.toml) — Python package configuration and pip dependencies.
+- [`environment.yml`](environment.yml) — Conda/mamba environment specification including `nest-simulator` and build tools (CMake, Boost, GSL).
 
 ## Getting Started
 
-### 1. Environment Setup
+### 1. Install the package
 
-**Option A: Full conda/mamba environment (Recommended)**
-
-This is the easiest approach as it handles all system-level and Python dependencies automatically.
+**Inside the Docker container (NEST is pre-installed)**
 
 ```bash
-# Create environment from specification
+pip install -e ".[standalone]"
+```
+
+**Standalone / local development**
+
+`nest-simulator` is a compiled dependency that cannot be installed via pip. Start with conda/mamba, then install the package:
+
+```bash
 mamba env create -f environment.yml
 mamba activate motor-controller
-
-# Install the package in editable mode
-pip install -e .
+pip install -e ".[standalone]"
 ```
-
-- Uses [`environment.yml`](environment.yml) to install all dependencies including `nest-simulator`
-- **Important:** `nest-simulator` must be installed via mamba/conda, not pip (not available on PyPI)
-- Key dependencies: nest-simulator, nestml, numpy, pandas, matplotlib, h5py, statsmodels, cmake, make, boost, gsl
-
-**Option B: Manual environment (pyenv, venv, or system Python)**
-
-If you prefer to manage Python versions with venv:
-
-```bash
-# Example with venv
-python -m venv venv
-source venv/bin/activate
-
-# Install the package with Python dependencies
-pip install -e .
-```
-
-- Python dependencies are listed in [`pyproject.toml`](pyproject.toml) and installed automatically
-- **You must manually install** system-level dependencies:
-  - `nest-simulator` (via conda, OS package manager, or [build from source](https://nest-simulator.readthedocs.io/))
 
 ### 2. Compile NESTML Neurons
 
@@ -70,7 +52,7 @@ python -m motor_controller_model.nestml_neurons.compile_nestml_neurons
 Train the M1 network and run a standalone inference test:
 ```bash
 python -m motor_controller_model.run_m1 --force-retrain \
-    --nest-module "./motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so"
+    --nest-module "./src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so"
 ```
 
 When running inside the controller devcontainer, use the `custom_stdp_module` NEST module:
@@ -80,12 +62,12 @@ python -m motor_controller_model.run_m1 --output-dir /sim/controller/artifacts/m
 
 This trains the network (or loads cached weights if config matches), then runs an inference test and saves results and plots to the output directory.
 
-**For detailed usage, command-line options, and parameter sweeps**, see the [motor_controller_model README](motor_controller_model/README.md).
+**For detailed usage, command-line options, and parameter sweeps**, see the [motor_controller_model README](src/motor_controller_model/README.md).
 
 ### 4. Additional Resources
 
 - **Network Architecture:** See [`overview_network.png`](overview_network.png) for a visual summary of the spiking neural network architecture (Figure 1 above)
-- **Package Documentation:** See [`motor_controller_model/README.md`](motor_controller_model/README.md) for detailed API usage
+- **Package Documentation:** See [`src/motor_controller_model/README.md`](src/motor_controller_model/README.md) for detailed API usage
 - **Outdated files:** Legacy scripts, tutorials, and the monolithic training script are in [`outdated/`](outdated/).
 
 

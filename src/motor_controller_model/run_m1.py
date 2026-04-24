@@ -3,19 +3,14 @@ run_m1.py: Script to run M1 training/loading and standalone inference test.
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import nest
 import numpy as np
+import structlog
 
 from .m1_network import M1Network
-
-# Ensure package is in path if running as script
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-
-import structlog
 
 from .config_schema import MotorControllerConfig, TrainingTimings
 from .m1_factory import get_m1_or_train
@@ -192,7 +187,7 @@ def main():
         action="store_true",
         help="Force retraining even if cache exists",
     )
-    default_artifacts = Path(__file__).resolve().parent.parent / "results"
+    default_artifacts = Path(__file__).resolve().parent.parent.parent / "results"
     parser.add_argument(
         "--output-dir",
         type=Path,

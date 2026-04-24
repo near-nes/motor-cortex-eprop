@@ -20,4 +20,3 @@ dependencies:
 - pip:
   - nestml
   - odetoolbox
-  - git+https://github.com/near-nes/controller.git@eprop-m1#subdirectory=complete_control/interfaces

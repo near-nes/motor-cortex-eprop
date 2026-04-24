@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "motor_controller_model"
 version = "0.1.0"
@@ -6,25 +10,24 @@ authors = [
     { name = "Renan O. Shimoura" }
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "matplotlib",
-    "seaborn",
     "pandas",
     "pyyaml",
     "pydantic>=2.0",
     "h5py",
-    "statsmodels",
-    "nestml",
-    "odetoolbox",
     "structlog",
-    "minjerk-dynamics @ git+https://github.com/near-nes/controller.git#subdirectory=complete_control/shared/minjerk"
+    "minjerk-dynamics"
 ]
 
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+[project.optional-dependencies]
+standalone = [
+    "nestml",
+]
+notebook = ["jupyterlab"]
+dev = ["pytest"]
 
 [tool.setuptools.packages.find]
-include = ["motor_controller_model*"]
+where = ["src"]
