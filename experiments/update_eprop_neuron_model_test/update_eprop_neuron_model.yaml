@@ -5,7 +5,7 @@ simulation:
 task:
   n_iter: 50
   input_shift_ms: 100.0
-  learning_start_ms: 650.0
+  learning_start_ms: 1.0
 
 training:
   time_prep_ms: 650.0

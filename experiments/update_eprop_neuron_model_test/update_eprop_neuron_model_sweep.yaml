@@ -3,26 +3,26 @@ base_config: update_eprop_neuron_model.yaml
 output_dir: ../../results/sweeps
 nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
 force_retrain: true
-runs:
-  - name: baseline
-    overrides: {
-      synapses.exc.optimizer.eta: 1e-5,
-      synapses.inh.optimizer.eta: 1e-5,
-      synapses.inh.plastic: false,
+fixed_overrides:
+  synapses.w_input: 1.0
+  synapses.w_rec: 4.0
+  synapses.exc.optimizer.eta: 1e-5
+  synapses.inh.optimizer.eta: 1e-5
+  neurons.rec.c_reg: 0.0
+axes:
+  synapses.inh.plastic:
+    - true
 
-      synapses.w_input: 1.0,
-      synapses.w_rec: 1.0,
-    }
+# runs:
+#   - name: baseline
+#     overrides: {
+#       synapses.inh.plastic: false,
+#     }
 
-  - name: inh_plastic
-    overrides: {
-      synapses.exc.optimizer.eta: 1e-5,
-      synapses.inh.optimizer.eta: 1e-5,
-      synapses.inh.plastic: true,
-
-      synapses.w_input: 1.0,
-      synapses.w_rec: 1.0,
-    }
+#   - name: inh_plastic
+#     overrides: {
+#       synapses.inh.plastic: true,
+#     }
 
 # fixed_overrides:
 #   synapses.w_input: 1.5
