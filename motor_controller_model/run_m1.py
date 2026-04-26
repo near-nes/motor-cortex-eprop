@@ -41,15 +41,6 @@ def run_inference_test(
             "total_num_virtual_procs": config.simulation.total_num_virtual_procs,
         }
     )
-    # Keep kernel-level e-prop settings explicit so inference is independent
-    # of whether training was run earlier in the same process.
-    # Note: we set the learning window to the full sequence duration for the inference test,
-    # which avoid any zeroing of readout/error/target signals that would occur if the window was shorter than the sequence.
-    nest.set(
-        eprop_learning_window=timings.sequence_ms,  # Full sequence for inference test
-        eprop_reset_neurons_on_update=False,
-        eprop_update_interval=timings.sequence_ms,
-    )
     install_nestml_module(nest_module)
 
     training_cfg = config.training
@@ -118,6 +109,26 @@ def run_inference_test(
         },
     )
     nest.Connect(mm_out, out_pos + out_neg)
+
+    # Keep eprop_readout learning-window gate open during standalone inference.
+    gen_learning_window = nest.Create("step_rate_generator", 1)
+    nest.SetStatus(
+        gen_learning_window[0],
+        {
+            "amplitude_times": [step_ms],
+            "amplitude_values": [1.0],
+        },
+    )
+    nest.Connect(
+        gen_learning_window,
+        out_pos + out_neg,
+        "all_to_all",
+        {
+            "synapse_model": "rate_connection_delayed",
+            "delay": step_ms,
+            "receptor_type": 1,
+        },
+    )
 
     sr_rb = nest.Create("spike_recorder", {"start": step_ms, "stop": sim_time_ms})
     nest.Connect(network.nrns_rb, sr_rb)

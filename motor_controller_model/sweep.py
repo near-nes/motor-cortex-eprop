@@ -311,7 +311,7 @@ def main() -> None:
     force_retrain = spec.get("force_retrain", True) if args.force_retrain is None else args.force_retrain
     nest_module = spec.get("nest_module", "motor_neuron_module")
 
-    manifest_path = sweep_root / "manifest.jsonl"
+    manifest_path = sweep_root / "manifest.json"
     summary: list[dict[str, Any]] = []
     for run_spec in run_specs:
         result = run_single_spec(

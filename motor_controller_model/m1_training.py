@@ -29,9 +29,6 @@ def setup_nest_kernel(
     nest.ResetKernel()
     install_nestml_module(nest_module)
     nest.set(
-        eprop_learning_window=timings.learning_window,
-        eprop_reset_neurons_on_update=False,
-        eprop_update_interval=timings.sequence_ms,
         print_time=config.simulation.print_time,
         resolution=config.simulation.step,
         total_num_virtual_procs=config.simulation.total_num_virtual_procs,
@@ -69,7 +66,6 @@ def _create_planner_neurons(
     Connects directly to the RBF layer.
     """
     n_input = config.training.n_input_neurons
-    n_seq_steps = timings.n_timesteps_per_sequence
     tcfg = config.training
 
     full_traj = np.tile(
@@ -106,6 +102,32 @@ def _create_planner_neurons(
     # network.connect(planner_neg)
 
 
+def _build_learning_window_schedule(
+    timings: TrainingTimings,
+    learning_start_ms: float,
+) -> tuple[list[float], list[float]]:
+    """Build piecewise-constant learning-window signal for readout receptor 1.
+
+    The signal is 0 before ``learning_start_ms`` within each sequence and 1 from
+    ``learning_start_ms`` until sequence end.
+    """
+    step_ms = timings.step_ms
+    seq_starts = np.arange(0.0, timings.task_ms, timings.sequence_ms)
+
+    times = [step_ms]
+    values = [0.0]
+
+    for seq_start in seq_starts:
+        start_time = seq_start + learning_start_ms + step_ms
+        end_time = seq_start + timings.sequence_ms + step_ms
+
+        if start_time < end_time:
+            times.extend([start_time, end_time])
+            values.extend([1.0, 0.0])
+
+    return times, values
+
+
 def _create_target_generators(
     network: M1Network,
     all_signals: List[TrainingSignals],
@@ -127,7 +149,11 @@ def _create_target_generators(
 
     amp_times = np.arange(len(concat_pos)) * step_ms + step_ms
 
+    # Create generator nodes first.
     gen_rate_target = nest.Create("step_rate_generator", 2)
+    gen_learning_window = nest.Create("step_rate_generator", 1)
+
+    # Configure target signals.
     nest.SetStatus(
         gen_rate_target[0],
         {
@@ -143,6 +169,23 @@ def _create_target_generators(
         },
     )
 
+    # Learning-window gate for eprop_readout (receptor 1),
+    # separate from target input on receptor 2.
+    lw_times, lw_values = _build_learning_window_schedule(
+        timings,
+        float(config.task.learning_start_ms),
+    )
+
+    # Configure learning-window signal.
+    nest.SetStatus(
+        gen_learning_window[0],
+        {
+            "amplitude_times": lw_times,
+            "amplitude_values": lw_values,
+        },
+    )
+
+    # Connect generators after all node creation/configuration.
     nest.Connect(
         gen_rate_target[0],
         network.nrns_out_p,
@@ -161,6 +204,16 @@ def _create_target_generators(
             "synapse_model": "rate_connection_delayed",
             "delay": syn_cfg.rate_target_delay,
             "receptor_type": syn_cfg.receptor_type,
+        },
+    )
+    nest.Connect(
+        gen_learning_window,
+        network.nrns_out_p + network.nrns_out_n,
+        "all_to_all",
+        {
+            "synapse_model": "rate_connection_delayed",
+            "delay": syn_cfg.rate_target_delay,
+            "receptor_type": 1,
         },
     )
 

@@ -69,6 +69,17 @@ def test_config_loading():
         return False
 
 
+def test_inhibitory_plasticity_flag_defaults_and_override():
+    """Inhibitory synapse plasticity flag should default to False and allow override."""
+    default_cfg = MotorControllerConfig()
+    assert default_cfg.synapses.inh.plastic is False
+
+    overridden_cfg = MotorControllerConfig.model_validate(
+        {"synapses": {"inh": {"plastic": True}}}
+    )
+    assert overridden_cfg.synapses.inh.plastic is True
+
+
 if __name__ == "__main__":
     success = test_config_loading()
     exit(0 if success else 1)

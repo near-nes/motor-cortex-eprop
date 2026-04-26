@@ -97,7 +97,7 @@ class M1Network:
         self,
         simulation_time_ms: float,
         train: bool = False,
-        output_neuron_model: str = "eprop_readout_bsshslm_2020",
+        output_neuron_model: str = "eprop_readout",
         output_neuron_params: dict | None = None,
         n_out: int | None = None,
     ):
@@ -140,6 +140,7 @@ class M1Network:
 
         step_ms = self.config.simulation.step
         simulation_steps = int(simulation_time_ms / step_ms + 1)
+        sequence_duration_ms = self.config.training.sequence_duration_ms
 
         # 1. Create RB Neurons
         rbf_cfg = self.config.rbf
@@ -166,28 +167,48 @@ class M1Network:
         n_rec = self.config.neurons.n_rec
         n_per_channel = n_out // 2
         n_exc = int(n_rec * self.config.neurons.exc_ratio)
+        rec_cfg = self.config.neurons.rec
+        rec_params = rec_cfg.model_dump(exclude={"eligibility_tau_ms", "tau_reg_ms"})
+        rec_params["kappa"] = float(np.exp(-step_ms / rec_cfg.eligibility_tau_ms))
+        rec_params["kappa_reg"] = float(np.exp(-step_ms / rec_cfg.tau_reg_ms))
 
         self.nrns_rec = nest.Create(
-            "eprop_iaf_bsshslm_2020", n_exc, self.config.neurons.rec.model_dump()
+            "eprop_iaf", n_exc, rec_params
         ) + nest.Create(
-            "eprop_iaf_bsshslm_2020",
+            "eprop_iaf",
             n_rec - n_exc,
-            self.config.neurons.rec.model_dump(),
+            rec_params,
         )
+        # Set initial states of recurrent neurons to random values to break symmetry.
+        v_m_init = np.random.uniform(
+            self.config.neurons.rec.E_L, 
+            self.config.neurons.rec.V_th, 
+            len(self.nrns_rec)
+        )
+        nest.SetStatus(self.nrns_rec, "V_m", v_m_init)
 
         if train:
+            out_params = {
+                **self.config.neurons.out.model_dump(),
+                "eprop_isi_trace_cutoff": sequence_duration_ms,
+            }
             self.nrns_out_p = nest.Create(
-                "eprop_readout_bsshslm_2020",
+                "eprop_readout",
                 n_per_channel,
-                self.config.neurons.out.model_dump(),
+                out_params,
             )
             self.nrns_out_n = nest.Create(
-                "eprop_readout_bsshslm_2020",
+                "eprop_readout",
                 n_per_channel,
-                self.config.neurons.out.model_dump(),
+                out_params,
             )
         else:
             out_params = output_neuron_params or self.config.neurons.out.model_dump()
+            if output_neuron_model == "eprop_readout":
+                out_params = {
+                    **out_params,
+                    "eprop_isi_trace_cutoff": sequence_duration_ms,
+                }
             self.nrns_out_p = nest.Create(output_neuron_model, n_per_channel)
             nest.SetStatus(self.nrns_out_p, out_params)
             self.nrns_out_n = nest.Create(output_neuron_model, n_per_channel)
@@ -221,27 +242,28 @@ class M1Network:
                 **optimizer_exc.model_dump(),
                 "batch_size": self.config.task.gradient_batch_size,
             },
-            "average_gradient": syn_cfg.average_gradient,
         }
-        params_syn_eprop_inh = {
-            "optimizer": {
-                **optimizer_inh.model_dump(),
-                "batch_size": self.config.task.gradient_batch_size,
-            },
-            "weight": syn_cfg.inh.weight,
-            "average_gradient": syn_cfg.average_gradient,
-        }
-
         nest.CopyModel(
-            "eprop_synapse_bsshslm_2020",
+            "eprop_synapse",
             "eprop_synapse_m1_exc",
             params_syn_eprop_exc,
         )
-        nest.CopyModel(
-            "eprop_synapse_bsshslm_2020",
-            "eprop_synapse_m1_inh",
-            params_syn_eprop_inh,
-        )
+        if syn_cfg.inh.plastic:
+            params_syn_eprop_inh = {
+                "optimizer": {
+                    **optimizer_inh.model_dump(),
+                    "batch_size": self.config.task.gradient_batch_size,
+                },
+                "weight": syn_cfg.inh.weight,
+            }
+            nest.CopyModel(
+                "eprop_synapse",
+                "eprop_synapse_m1_inh",
+                params_syn_eprop_inh,
+            )
+            self._log.info("inhibitory recurrent synapses are plastic during training")
+        else:
+            self._log.debug("inhibitory recurrent synapses are static during training")
 
         w_input = syn_cfg.w_input
         w_rec = syn_cfg.w_rec
@@ -272,7 +294,6 @@ class M1Network:
         params_syn_rec_exc = {
             "synapse_model": "eprop_synapse_m1_exc",
             "delay": step_ms,
-            "tau_m_readout": self.config.neurons.out.tau_m,
             "weight": nest.math.redraw(
                 nest.random.normal(mean=w_rec, std=w_rec * 0.1),
                 min=optimizer_exc.Wmin,
@@ -280,9 +301,10 @@ class M1Network:
             ),
         }
         params_syn_rec_inh = {
-            "synapse_model": "eprop_synapse_m1_inh",
+            "synapse_model": "eprop_synapse_m1_inh"
+            if syn_cfg.inh.plastic
+            else "static_synapse",
             "delay": step_ms,
-            "tau_m_readout": self.config.neurons.out.tau_m,
             "weight": nest.math.redraw(
                 nest.random.normal(mean=-w_rec * g, std=g * w_rec * 0.1),
                 min=optimizer_inh.Wmin,
@@ -311,22 +333,21 @@ class M1Network:
         if len(nrns_rec_exc):
             nest.Connect(nrns_rec_exc, nrns_out, "all_to_all", params_syn_rec_exc)
 
-        # Learning-signal feedback to excitatory recurrent neurons.
-        if len(nrns_rec_exc):
-            nest.Connect(
-                nrns_out,
-                nrns_rec_exc,
-                "all_to_all",
-                {
-                    "synapse_model": "eprop_learning_signal_connection_bsshslm_2020",
-                    "delay": syn_cfg.feedback_delay,
-                    "weight": nest.math.redraw(
-                        nest.random.normal(mean=w_rec, std=w_rec * 0.1),
-                        min=optimizer_exc.Wmin,
-                        max=optimizer_exc.Wmax,
-                    ),
-                },
-            )
+        # Learning-signal feedback to recurrent neurons.
+        nest.Connect(
+            nrns_out,
+            self.nrns_rec,
+            "all_to_all",
+            {
+                "synapse_model": "eprop_learning_signal_connection",
+                "delay": syn_cfg.feedback_delay,
+                "weight": nest.math.redraw(
+                    nest.random.normal(mean=w_rec, std=w_rec * 0.1),
+                    min=optimizer_exc.Wmin,
+                    max=optimizer_exc.Wmax,
+                ),
+            },
+        )
 
     def _connect_from_saved_weights(self):
         """Inject exact saved topology with static synapses for inference."""

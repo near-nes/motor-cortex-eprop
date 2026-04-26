@@ -6,7 +6,7 @@ from typing import List, Literal
 
 import structlog
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 _log = structlog.get_logger("m1_config")
 
@@ -36,7 +36,7 @@ class TaskConfig(BaseModel):
     learning_start_ms: float = Field(
         default=600.0,
         description="Absolute start time (ms) for learning window within each sequence. "
-        "NEST zeros the error/target/readout signals before this time. "
+        "This drives the explicit eprop_readout learning-window generator (receptor 1). "
         "E.g. with sequence=1150ms and learning_start_ms=600ms, learning is active "
         "from t=600 to t=1150 within each sequence.",
     )
@@ -91,6 +91,11 @@ class TrainingSignalConfig(BaseModel):
         default=0.0, description="Post-movement phase duration (ms)"
     )
 
+    @property
+    def sequence_duration_ms(self) -> float:
+        """Total sequence duration in milliseconds."""
+        return self.time_prep_ms + self.time_move_ms + self.time_post_ms
+
 
 class TrainingTimings(BaseModel):
     """Computed timing parameters for a training run.
@@ -110,9 +115,7 @@ class TrainingTimings(BaseModel):
         task = config.task
         step_ms = config.simulation.step
         training = config.training
-        sequence_ms = (
-            training.time_prep_ms + training.time_move_ms + training.time_post_ms
-        )
+        sequence_ms = training.sequence_duration_ms
         learning_window = sequence_ms - task.learning_start_ms
         if learning_window <= 0:
             _log.warning(
@@ -182,36 +185,44 @@ class RBFConfig(BaseModel):
 class RecurrentNeuronConfig(BaseModel):
     """Recurrent neuron parameters."""
 
+    model_config = ConfigDict(extra="forbid")
+
+    # LIF parameters
     C_m: float = Field(default=250.0, description="Membrane capacitance (pF)")
-    c_reg: float = Field(default=300.0, description="Regularization constant")
-    E_L: float = Field(default=0.0, description="Resting membrane potential (mV)")
-    f_target: float = Field(default=10.0, description="Target firing rate (Hz)")
-    gamma: float = Field(default=0.3, description="Learning rate scaling factor")
+    E_L: float = Field(default=-70.0, description="Resting membrane potential (mV)")
     I_e: float = Field(default=0.0, description="External current (pA)")
-    regular_spike_arrival: bool = Field(
-        default=False, description="Use regular spike arrival"
+    t_ref: float = Field(default=2.0, description="Refractory period (ms)")
+    tau_m: float = Field(default=20.0, description="Membrane time constant (ms)")
+    V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
+    V_th: float = Field(default=-50.0, description="Spike threshold (mV)")
+
+    # E-prop specific parameters
+    c_reg: float = Field(default=0.0, description="Regularization constant")
+    f_target: float = Field(default=10.0, description="Target firing rate (Hz)")
+    beta: float = Field(
+        default=1.0,
+        description="Width scaling for surrogate gradient/pseudo-derivative",
+    )
+    gamma: float = Field(default=0.3, description="Learning rate scaling factor")
+    eligibility_tau_ms: float = Field(
+        default=20.0,
+        description="Eligibility trace time constant (ms) used to derive kappa",
+    )
+    tau_reg_ms: float = Field(
+        default=20.0,
+        description="Regularization trace time constant (ms) used to derive kappa_reg",
     )
     surrogate_gradient_function: str = Field(
         default="piecewise_linear", description="Surrogate gradient function"
     )
-    t_ref: float = Field(default=2.0, description="Refractory period (ms)")
-    tau_m: float = Field(default=20.0, description="Membrane time constant (ms)")
-    V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
-    V_th: float = Field(default=20.0, description="Spike threshold (mV)")
 
 
 class OutputNeuronConfig(BaseModel):
     """Output neuron parameters."""
 
     C_m: float = Field(default=250.0, description="Membrane capacitance (pF)")
-    E_L: float = Field(default=0.0, description="Resting membrane potential (mV)")
+    E_L: float = Field(default=-70.0, description="Resting membrane potential (mV)")
     I_e: float = Field(default=0.0, description="External current (pA)")
-    loss: str = Field(
-        default="mean_squared_error", description="Loss function for output neurons"
-    )
-    regular_spike_arrival: bool = Field(
-        default=False, description="Use regular spike arrival"
-    )
     tau_m: float = Field(default=20.0, description="Membrane time constant (ms)")
     V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
 
@@ -238,6 +249,10 @@ class OptimizerConfig(BaseModel):
     eta: float = Field(default=0.01, description="Learning rate for optimizer")
     Wmin: float = Field(description="Minimum synaptic weight (pA)")
     Wmax: float = Field(description="Maximum synaptic weight (pA)")
+    optimize_each_step: bool = Field(
+        default=False,
+        description="If True, optimize each step, if False once per spike",
+    )
 
 
 class ExcSynapseConfig(BaseModel):
@@ -254,8 +269,12 @@ class InhSynapseConfig(BaseModel):
     optimizer: OptimizerConfig = Field(
         default_factory=lambda: OptimizerConfig(Wmin=-1000.0, Wmax=0.0)
     )
+    plastic: bool = Field(
+        default=False,
+        description="Enable plastic inhibitory recurrent synapses during training",
+    )
     weight: float = Field(
-        default=-400.0, description="Initial inhibitory synaptic weight (pA)"
+        default=-1.0, description="Initial inhibitory synaptic weight (pA)"
     )
 
 
@@ -267,9 +286,6 @@ class SynapsesConfig(BaseModel):
     g: float = Field(default=4.0, description="Inhibitory/excitatory weight ratio")
     conn_bernoulli_p: float = Field(
         default=0.1, description="Connection probability for recurrent connections"
-    )
-    average_gradient: bool = Field(
-        default=False, description="Average gradient across batch"
     )
     static_delay: float = Field(
         default=1.0, description="Delay for static synapses (ms)"
@@ -305,7 +321,6 @@ class MultimeterOutConfig(BaseModel):
         default=[
             "V_m",
             "readout_signal",
-            "readout_signal_unnorm",
             "target_signal",
             "error_signal",
         ],
