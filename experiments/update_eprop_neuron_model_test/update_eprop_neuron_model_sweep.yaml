@@ -12,6 +12,19 @@ fixed_overrides:
 axes:
   synapses.inh.plastic:
     - true
+    # - false
+  rbf.sdev_hz:
+    - 3600.0
+    - 1800.0
+    - 7200.0
+  rbf.max_peak_rate_hz:
+    - 800.0
+    - 400.0
+    - 1600.0
+  rbf.num_centers:
+    - 10
+    - 15
+    - 20
 
 # runs:
 #   - name: baseline

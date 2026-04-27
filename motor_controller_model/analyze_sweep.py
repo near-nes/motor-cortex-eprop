@@ -15,6 +15,12 @@ from typing import Any
 import yaml
 
 
+DEFAULT_TRAINING_METRICS = [
+    "training_success_score",
+    "final_training_loss",
+]
+
+
 def load_json(path: Path) -> Any:
     """Load JSON from disk."""
 
@@ -137,6 +143,23 @@ def rank_completed_runs(
     return usable
 
 
+def resolve_metric_key(records: list[dict[str, Any]], requested_metric: str) -> str:
+    """Resolve metric key, supporting an auto training-focused mode."""
+
+    if requested_metric != "auto_training":
+        return requested_metric
+
+    for candidate in DEFAULT_TRAINING_METRICS:
+        for record in records:
+            if isinstance(record.get(candidate), (int, float)):
+                return candidate
+
+    raise RuntimeError(
+        "Could not auto-select a training metric; expected one of: "
+        + ", ".join(DEFAULT_TRAINING_METRICS)
+    )
+
+
 def resolve_best_run_dir(best_record: dict[str, Any], sweep_root: Path) -> Path:
     """Resolve and validate directory path for the best run."""
 
@@ -193,8 +216,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--metric",
         type=str,
-        default="final_training_loss",
-        help="Metric key in summary/manifest records (default: final_training_loss)",
+        default="auto_training",
+        help=(
+            "Metric key in summary/manifest records (default: auto_training, "
+            "prefers training_success_score, falls back to final_training_loss)"
+        ),
     )
     parser.add_argument(
         "--mode",
@@ -233,8 +259,9 @@ def main() -> None:
     )
 
     records = load_records(sweep_root)
+    metric_key = resolve_metric_key(records, args.metric)
     try:
-        usable = rank_completed_runs(records, args.metric, args.mode)
+        usable = rank_completed_runs(records, metric_key, args.mode)
     except RuntimeError as exc:
         raise RuntimeError(f"{exc} in {sweep_root}") from exc
 
@@ -248,7 +275,7 @@ def main() -> None:
 
     print(f"Sweep root: {sweep_root}")
     print(
-        f"Best run by {args.mode}({args.metric}): "
+        f"Best run by {args.mode}({metric_key}): "
         f"{best_record.get('name')} ({best_metric:.8g})"
     )
     print("Top runs:")
@@ -256,13 +283,13 @@ def main() -> None:
         runtime = record.get("runtime_s")
         runtime_text = f", runtime_s={runtime}" if runtime is not None else ""
         print(
-            f"{rank}. name={record.get('name')}, {args.metric}={metric_value:.8g}{runtime_text}"
+            f"{rank}. name={record.get('name')}, {metric_key}={metric_value:.8g}{runtime_text}"
         )
 
     report_path = sweep_root / "best_run_report.json"
     report_payload = {
         "sweep_root": str(sweep_root),
-        "metric": args.metric,
+        "metric": metric_key,
         "mode": args.mode,
         "top_k": top_k,
         "best": {

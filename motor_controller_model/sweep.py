@@ -225,6 +225,73 @@ def average_final_loss(loss: Any, n_samples: int) -> float:
     return float(np.mean(loss_array[-window:]))
 
 
+def compute_training_quality_metrics(loss: Any, n_samples: int) -> dict[str, float | bool]:
+    """Compute training-only quality metrics from the loss curve.
+
+    These metrics are intended to judge training success without inference tests.
+    Lower ``training_success_score`` is better.
+    """
+
+    import numpy as np
+
+    loss_array = np.asarray(loss, dtype=float)
+    if loss_array.size == 0:
+        return {
+            "best_training_loss": float("nan"),
+            "initial_training_loss": float("nan"),
+            "training_improvement_ratio": float("nan"),
+            "final_to_best_ratio": float("nan"),
+            "last_window_cv": float("nan"),
+            "last_window_slope": float("nan"),
+            "training_success_score": float("nan"),
+            "training_success": False,
+        }
+
+    eps = 1e-12
+    window = max(1, min(int(n_samples), int(loss_array.size)))
+    final_loss = float(np.mean(loss_array[-window:]))
+    best_loss = float(np.min(loss_array))
+    initial_loss = float(np.mean(loss_array[:window]))
+
+    improvement_ratio = float((initial_loss - final_loss) / (abs(initial_loss) + eps))
+    final_to_best_ratio = float(final_loss / (best_loss + eps))
+
+    last_window = loss_array[-window:]
+    last_mean = float(np.mean(last_window))
+    last_std = float(np.std(last_window))
+    last_cv = float(last_std / (abs(last_mean) + eps))
+
+    x = np.arange(loss_array.size, dtype=float)
+    slope = float(np.polyfit(x, loss_array, 1)[0]) if loss_array.size >= 2 else 0.0
+
+    # Lower is better: penalize noisy/unstable tails and lack of improvement.
+    success_score = float(
+        final_loss
+        * (1.0 + max(0.0, final_to_best_ratio - 1.0))
+        * (1.0 + last_cv)
+        / (1.0 + max(0.0, improvement_ratio))
+    )
+
+    # Conservative training-only success gate.
+    success = bool(
+        np.isfinite(success_score)
+        and (improvement_ratio >= 0.1)
+        and (final_to_best_ratio <= 1.2)
+        and (last_cv <= 0.25)
+    )
+
+    return {
+        "best_training_loss": best_loss,
+        "initial_training_loss": initial_loss,
+        "training_improvement_ratio": improvement_ratio,
+        "final_to_best_ratio": final_to_best_ratio,
+        "last_window_cv": last_cv,
+        "last_window_slope": slope,
+        "training_success_score": success_score,
+        "training_success": success,
+    }
+
+
 def run_single_spec(
     *,
     repo_root: Path,
@@ -301,9 +368,12 @@ def run_single_spec(
         loss = np.load(loss_path)
         run_meta["training_loss_points"] = int(loss.size)
         run_meta["final_training_loss"] = average_final_loss(loss, len(config.training.trajectories))
+        run_meta.update(compute_training_quality_metrics(loss, len(config.training.trajectories)))
     else:
         run_meta["training_loss_points"] = 0
         run_meta["final_training_loss"] = None
+        run_meta["training_success"] = False
+        run_meta["training_success_score"] = None
     run_meta["status"] = "completed"
 
     with open(run_dir / "run_spec.json", "w", encoding="utf-8") as handle:

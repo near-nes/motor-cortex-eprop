@@ -67,7 +67,7 @@ python -m motor_controller_model.sweep \
 
 The sweep runner writes a timestamped root directory containing per-run configs, a JSONL manifest, and a summary file. For Slurm, point each array task at the same spec and pass `--task-index $SLURM_ARRAY_TASK_ID` so local testing and cluster execution stay identical.
 
-After a sweep finishes, you can rank runs and pick the best one (default: minimum `final_training_loss`):
+After a sweep finishes, you can rank runs and pick the best one. By default, ranking is training-only and uses `training_success_score` (with fallback to `final_training_loss` for older sweeps):
 ```bash
 python -m motor_controller_model.analyze_sweep \
     --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
@@ -75,6 +75,14 @@ python -m motor_controller_model.analyze_sweep \
 ```
 
 This prints the best run and top-k ranking, and writes `best_run_report.json` in the selected sweep directory.
+
+To force pure final-loss ranking explicitly:
+```bash
+python -m motor_controller_model.analyze_sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --latest \
+    --metric final_training_loss
+```
 
 To also copy the best run to a stable location:
 ```bash
