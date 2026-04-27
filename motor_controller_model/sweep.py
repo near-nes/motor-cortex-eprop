@@ -8,7 +8,6 @@ import json
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,17 +15,6 @@ from typing import Any
 import yaml
 
 from .config_schema import MotorControllerConfig
-
-
-@dataclass(frozen=True)
-class SweepRunSpec:
-    """One materialized run inside a sweep."""
-
-    index: int
-    name: str
-    overrides: dict[str, Any]
-    config: MotorControllerConfig
-    run_dir: Path
 
 
 def get_git_commit_hash(repo_dir: Path) -> str:
@@ -111,6 +99,81 @@ def load_spec(path: Path) -> dict[str, Any]:
     if not isinstance(spec, dict):
         raise TypeError(f"Sweep spec at {path} must be a mapping")
     return spec
+
+
+def resolve_base_config_path(spec: dict[str, Any], spec_path: Path) -> Path:
+    """Resolve absolute path to base config from sweep spec."""
+
+    base_config_ref = Path(spec["base_config"])
+    if base_config_ref.is_absolute():
+        return base_config_ref
+    return (spec_path.parent / base_config_ref).resolve()
+
+
+def resolve_sweep_root(
+    *,
+    spec: dict[str, Any],
+    spec_path: Path,
+    repo_root: Path,
+    explicit_sweep_root: Path | None,
+) -> Path:
+    """Resolve output directory for this sweep run."""
+
+    if explicit_sweep_root is not None:
+        return explicit_sweep_root.resolve()
+
+    sweep_name = sanitize_run_name(spec.get("sweep_name") or spec_path.stem)
+    output_dir_ref = Path(spec.get("output_dir", repo_root / "results" / "sweeps"))
+    output_dir = (
+        output_dir_ref
+        if output_dir_ref.is_absolute()
+        else (spec_path.parent / output_dir_ref).resolve()
+    )
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return output_dir / sweep_name / timestamp
+
+
+def write_resolved_spec(
+    *,
+    sweep_root: Path,
+    spec: dict[str, Any],
+    base_config_path: Path,
+) -> None:
+    """Write resolved sweep spec metadata once per sweep directory."""
+
+    resolved_spec_path = sweep_root / "resolved_sweep_spec.yaml"
+    if resolved_spec_path.exists():
+        return
+
+    resolved_spec = dict(spec)
+    resolved_spec["base_config"] = str(base_config_path)
+    resolved_spec["sweep_root"] = str(sweep_root)
+    with open(resolved_spec_path, "w", encoding="utf-8") as handle:
+        yaml.safe_dump(resolved_spec, handle, sort_keys=False)
+
+
+def write_task_result(sweep_root: Path, task_index: int, result: dict[str, Any]) -> None:
+    """Write one result file for a single task-index run."""
+
+    task_results_dir = sweep_root / "task_results"
+    task_results_dir.mkdir(parents=True, exist_ok=True)
+    task_result_path = task_results_dir / f"task_{task_index:05d}.json"
+    with open(task_result_path, "w", encoding="utf-8") as handle:
+        json.dump(result, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
+def write_sweep_outputs(sweep_root: Path, summary: list[dict[str, Any]]) -> None:
+    """Write summary and manifest for a full sweep run."""
+
+    manifest_path = sweep_root / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as handle:
+        for result in summary:
+            handle.write(json.dumps(result, sort_keys=True) + "\n")
+
+    with open(sweep_root / "summary.json", "w", encoding="utf-8") as handle:
+        json.dump(summary, handle, indent=2, sort_keys=True)
+        handle.write("\n")
 
 
 def expand_run_specs(spec: dict[str, Any]) -> list[dict[str, Any]]:
@@ -272,6 +335,22 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Force retraining for every run",
     )
+    parser.add_argument(
+        "--sweep-root",
+        type=Path,
+        default=None,
+        help="Explicit sweep output directory (useful for Slurm arrays)",
+    )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="Run post-sweep analysis after completion (ignored with --task-index)",
+    )
+    parser.add_argument(
+        "--promote",
+        action="store_true",
+        help="When used with --analyze, also promote best run into <sweep_root>/best",
+    )
     return parser.parse_args()
 
 
@@ -282,23 +361,17 @@ def main() -> None:
     spec = load_spec(args.spec)
 
     repo_root = Path(__file__).resolve().parent.parent
-    base_config_ref = Path(spec["base_config"])
-    base_config_path = base_config_ref if base_config_ref.is_absolute() else (args.spec.parent / base_config_ref).resolve()
+    base_config_path = resolve_base_config_path(spec, args.spec)
     base_config = MotorControllerConfig.from_yaml(base_config_path)
 
-    sweep_name = sanitize_run_name(spec.get("sweep_name") or args.spec.stem)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir_ref = Path(spec.get("output_dir", repo_root / "results" / "sweeps"))
-    output_dir = output_dir_ref if output_dir_ref.is_absolute() else (args.spec.parent / output_dir_ref).resolve()
-    sweep_root = output_dir / sweep_name / timestamp
+    sweep_root = resolve_sweep_root(
+        spec=spec,
+        spec_path=args.spec,
+        repo_root=repo_root,
+        explicit_sweep_root=args.sweep_root,
+    )
     sweep_root.mkdir(parents=True, exist_ok=True)
-
-    resolved_spec_path = sweep_root / "resolved_sweep_spec.yaml"
-    resolved_spec = dict(spec)
-    resolved_spec["base_config"] = str(base_config_path)
-    resolved_spec["sweep_root"] = str(sweep_root)
-    with open(resolved_spec_path, "w", encoding="utf-8") as handle:
-        yaml.safe_dump(resolved_spec, handle, sort_keys=False)
+    write_resolved_spec(sweep_root=sweep_root, spec=spec, base_config_path=base_config_path)
 
     run_specs = expand_run_specs(spec)
     if args.task_index is not None:
@@ -311,7 +384,6 @@ def main() -> None:
     force_retrain = spec.get("force_retrain", True) if args.force_retrain is None else args.force_retrain
     nest_module = spec.get("nest_module", "motor_neuron_module")
 
-    manifest_path = sweep_root / "manifest.json"
     summary: list[dict[str, Any]] = []
     for run_spec in run_specs:
         result = run_single_spec(
@@ -325,12 +397,24 @@ def main() -> None:
             dry_run=args.dry_run,
         )
         summary.append(result)
-        with open(manifest_path, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(result, sort_keys=True) + "\n")
 
-    with open(sweep_root / "summary.json", "w", encoding="utf-8") as handle:
-        json.dump(summary, handle, indent=2, sort_keys=True)
-        handle.write("\n")
+    if args.task_index is not None:
+        write_task_result(sweep_root, args.task_index, summary[0])
+        return
+
+    write_sweep_outputs(sweep_root, summary)
+
+    if args.analyze:
+        command = [
+            sys.executable,
+            "-m",
+            "motor_controller_model.analyze_sweep",
+            "--sweep-root",
+            str(sweep_root),
+        ]
+        if args.promote:
+            command.append("--promote")
+        subprocess.run(command, cwd=repo_root, check=True)
 
 
 if __name__ == "__main__":

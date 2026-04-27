@@ -57,7 +57,34 @@ python -m motor_controller_model.sweep \
     --spec experiments/legacy_sequence/legacy_like_1500_timephases_sweep.yaml
 ```
 
+For local testing, you can run sweep + best-run analysis in one command:
+```bash
+python -m motor_controller_model.sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --analyze \
+    --promote
+```
+
 The sweep runner writes a timestamped root directory containing per-run configs, a JSONL manifest, and a summary file. For Slurm, point each array task at the same spec and pass `--task-index $SLURM_ARRAY_TASK_ID` so local testing and cluster execution stay identical.
+
+After a sweep finishes, you can rank runs and pick the best one (default: minimum `final_training_loss`):
+```bash
+python -m motor_controller_model.analyze_sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --latest
+```
+
+This prints the best run and top-k ranking, and writes `best_run_report.json` in the selected sweep directory.
+
+To also copy the best run to a stable location:
+```bash
+python -m motor_controller_model.analyze_sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --latest \
+    --promote
+```
+
+By default, the best run is copied to `<sweep_root>/best/`. You can override this with `--promote-dir`.
 
 
 
