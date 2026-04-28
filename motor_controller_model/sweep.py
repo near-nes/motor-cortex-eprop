@@ -8,6 +8,7 @@ import json
 import subprocess
 import sys
 import time
+import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -45,7 +46,9 @@ def apply_dotted_override(data: dict[str, Any], dotted_path: str, value: Any) ->
             node = {}
             current[part] = node
         if not isinstance(node, dict):
-            raise TypeError(f"Cannot override {dotted_path!r}; {part!r} is not a mapping")
+            raise TypeError(
+                f"Cannot override {dotted_path!r}; {part!r} is not a mapping"
+            )
         current = node
     current[parts[-1]] = value
 
@@ -152,7 +155,9 @@ def write_resolved_spec(
         yaml.safe_dump(resolved_spec, handle, sort_keys=False)
 
 
-def write_task_result(sweep_root: Path, task_index: int, result: dict[str, Any]) -> None:
+def write_task_result(
+    sweep_root: Path, task_index: int, result: dict[str, Any]
+) -> None:
     """Write one result file for a single task-index run."""
 
     task_results_dir = sweep_root / "task_results"
@@ -185,8 +190,16 @@ def expand_run_specs(spec: dict[str, Any]) -> list[dict[str, Any]]:
             if not isinstance(run, dict):
                 raise TypeError("Each entry in 'runs' must be a mapping")
             overrides = dict(run.get("overrides", {}))
-            name = run.get("name") or build_run_name(overrides, prefix=spec.get("run_name_prefix"))
-            run_specs.append({"index": index, "name": sanitize_run_name(name), "overrides": overrides})
+            name = run.get("name") or build_run_name(
+                overrides, prefix=spec.get("run_name_prefix")
+            )
+            run_specs.append(
+                {
+                    "index": index,
+                    "name": sanitize_run_name(name),
+                    "overrides": overrides,
+                }
+            )
         return run_specs
 
     axes = spec.get("axes", {})
@@ -204,7 +217,9 @@ def expand_run_specs(spec: dict[str, Any]) -> list[dict[str, Any]]:
     return run_specs
 
 
-def materialize_config(base_config: MotorControllerConfig, overrides: dict[str, Any]) -> MotorControllerConfig:
+def materialize_config(
+    base_config: MotorControllerConfig, overrides: dict[str, Any]
+) -> MotorControllerConfig:
     """Create a validated config object with dotted overrides applied."""
 
     data = base_config.model_dump()
@@ -216,8 +231,6 @@ def materialize_config(base_config: MotorControllerConfig, overrides: dict[str, 
 def average_final_loss(loss: Any, n_samples: int) -> float:
     """Compute a robust final-loss summary from a training loss array."""
 
-    import numpy as np
-
     loss_array = np.asarray(loss)
     if loss_array.size == 0:
         return float("nan")
@@ -225,14 +238,17 @@ def average_final_loss(loss: Any, n_samples: int) -> float:
     return float(np.mean(loss_array[-window:]))
 
 
-def compute_training_quality_metrics(loss: Any, n_samples: int) -> dict[str, float | bool]:
+def compute_training_quality_metrics(
+    loss: Any,
+    n_samples: int,
+    mean_firing_rate_hz: float | None = None,
+    spike_rate_cv: float | None = None,
+) -> dict[str, float | bool]:
     """Compute training-only quality metrics from the loss curve.
 
     These metrics are intended to judge training success without inference tests.
     Lower ``training_success_score`` is better.
     """
-
-    import numpy as np
 
     loss_array = np.asarray(loss, dtype=float)
     if loss_array.size == 0:
@@ -243,6 +259,7 @@ def compute_training_quality_metrics(loss: Any, n_samples: int) -> dict[str, flo
             "final_to_best_ratio": float("nan"),
             "last_window_cv": float("nan"),
             "last_window_slope": float("nan"),
+            "spike_rate_cv": float("nan"),
             "training_success_score": float("nan"),
             "training_success": False,
         }
@@ -272,12 +289,37 @@ def compute_training_quality_metrics(loss: Any, n_samples: int) -> dict[str, flo
         / (1.0 + max(0.0, improvement_ratio))
     )
 
+    # Biological activity penalty: heavily penalize if mean firing rate is too low or too high.
+    rate_penalty = 1.0
+    biological_success = True
+
+    if mean_firing_rate_hz is not None:
+        min_healthy_rate = 2.0  # Hz (lower bound)
+        max_healthy_rate = 40.0  # Hz (upper bound)
+
+        if mean_firing_rate_hz < min_healthy_rate:
+            # Penalize severely if network is almost dead
+            rate_penalty = 1.0 + (min_healthy_rate - mean_firing_rate_hz) * 10.0
+            biological_success = False
+        elif mean_firing_rate_hz > max_healthy_rate:
+            # Penalize if network is firing too fast
+            rate_penalty = 1.0 + (mean_firing_rate_hz - max_healthy_rate) * 0.5
+            biological_success = False
+
+    # Apply penalty (higher score is worse)
+    success_score *= rate_penalty
+
+    if spike_rate_cv is not None and np.isfinite(spike_rate_cv):
+        # Penalize uneven firing across recurrent neurons.
+        success_score *= 1.0 + max(0.0, float(spike_rate_cv))
+
     # Conservative training-only success gate.
     success = bool(
         np.isfinite(success_score)
         and (improvement_ratio >= 0.1)
         and (final_to_best_ratio <= 1.2)
         and (last_cv <= 0.25)
+        and biological_success  # Must also have healthy biological activity
     )
 
     return {
@@ -287,6 +329,12 @@ def compute_training_quality_metrics(loss: Any, n_samples: int) -> dict[str, flo
         "final_to_best_ratio": final_to_best_ratio,
         "last_window_cv": last_cv,
         "last_window_slope": slope,
+        "mean_firing_rate_hz": (
+            mean_firing_rate_hz if mean_firing_rate_hz is not None else float("nan")
+        ),
+        "spike_rate_cv": (
+            spike_rate_cv if spike_rate_cv is not None else float("nan")
+        ),
         "training_success_score": success_score,
         "training_success": success,
     }
@@ -361,14 +409,29 @@ def run_single_spec(
             handle.write("\n")
         return run_meta
 
-    import numpy as np
-
     loss_path = run_dir / "training_loss.npy"
     if loss_path.exists():
         loss = np.load(loss_path)
         run_meta["training_loss_points"] = int(loss.size)
-        run_meta["final_training_loss"] = average_final_loss(loss, len(config.training.trajectories))
-        run_meta.update(compute_training_quality_metrics(loss, len(config.training.trajectories)))
+        run_meta["final_training_loss"] = average_final_loss(
+            loss, len(config.training.trajectories)
+        )
+
+        # Attempt to load mean firing rate if available, and include it in the training quality metrics.
+        rate_path = run_dir / "mean_firing_rate.json"
+        mean_rate = None
+        spike_cv = None
+        if rate_path.exists():
+            with open(rate_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+                mean_rate = payload.get("mean_firing_rate_hz")
+                spike_cv = payload.get("spike_rate_cv")
+
+        run_meta.update(
+            compute_training_quality_metrics(
+                loss, len(config.training.trajectories), mean_rate, spike_cv
+            )
+        )
     else:
         run_meta["training_loss_points"] = 0
         run_meta["final_training_loss"] = None
@@ -441,7 +504,9 @@ def main() -> None:
         explicit_sweep_root=args.sweep_root,
     )
     sweep_root.mkdir(parents=True, exist_ok=True)
-    write_resolved_spec(sweep_root=sweep_root, spec=spec, base_config_path=base_config_path)
+    write_resolved_spec(
+        sweep_root=sweep_root, spec=spec, base_config_path=base_config_path
+    )
 
     run_specs = expand_run_specs(spec)
     if args.task_index is not None:
@@ -451,7 +516,11 @@ def main() -> None:
             )
         run_specs = [run_specs[args.task_index]]
 
-    force_retrain = spec.get("force_retrain", True) if args.force_retrain is None else args.force_retrain
+    force_retrain = (
+        spec.get("force_retrain", True)
+        if args.force_retrain is None
+        else args.force_retrain
+    )
     nest_module = spec.get("nest_module", "motor_neuron_module")
 
     summary: list[dict[str, Any]] = []

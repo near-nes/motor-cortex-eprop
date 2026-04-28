@@ -10,9 +10,6 @@ fixed_overrides:
   synapses.inh.optimizer.eta: 1e-5
   neurons.rec.c_reg: 0.0
 axes:
-  synapses.inh.plastic:
-    - true
-    # - false
   rbf.sdev_hz:
     - 3600.0
     - 1800.0

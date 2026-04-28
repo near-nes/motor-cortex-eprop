@@ -1,0 +1,51 @@
+sweep_name: eprop_dynamics_opt
+base_config: update_eprop_neuron_model_opt_rbf.yaml
+output_dir: ../../results/sweeps
+nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+# axes:
+#   synapses.exc.optimizer.eta:
+#     - 5e-5
+#     - 1e-4
+#     - 1e-5
+#   synapses.inh.optimizer.eta:
+#     - 5e-5
+#     - 1e-4
+#     - 1e-5
+#   neurons.rec.c_reg:
+#     - 5.0
+#     - 10.0
+#     - 50.0
+#     - 100.0
+
+# fixed_overrides:
+#   synapses.exc.optimizer.eta: 1.0e-5
+#   synapses.inh.optimizer.eta: 1.0e-5
+
+axes:
+  rbf.sdev_hz:
+    - 7200.0
+    - 3600.0
+    - 1800.0
+    - 900.0
+    - 450.0
+  rbf.num_centers:
+    - 25
+    - 20
+    - 15
+    - 10
+    - 5
+  synapses.exc.optimizer.eta:
+    - 5e-5
+    - 1e-5
+    - 5e-6
+  synapses.inh.optimizer.eta:
+    - 5e-5
+    - 1e-5
+    - 5e-6
+  neurons.rec.c_reg:
+    - 1.0
+    - 5.0
+    - 10.0
+    - 50.0

@@ -8,6 +8,8 @@ from typing import List
 import nest
 import numpy as np
 import structlog
+import json
+
 
 from .config_schema import MotorControllerConfig, TrainingTimings
 from .m1_network import M1Network, get_weights
@@ -339,6 +341,55 @@ def train_m1(
     events_mm_out = mm_out.get("events")
     loss = _compute_loss(events_mm_out, timings)
     np.save(artifacts_dir / "training_loss.npy", loss)
+
+    # Calculate the duration of a single training iteration (all trajectories combined)
+    iter_duration_ms = timings.n_timesteps_per_sequence * timings.n_samples * timings.step_ms
+    last_iter_start_ms = timings.task_ms - iter_duration_ms
+
+    events_rec = spike_recorder.get("events")
+    spike_times = events_rec["times"]
+    spike_senders = events_rec["senders"]
+
+    # Filter spikes that occurred only in the last iteration.
+    mask = spike_times >= last_iter_start_ms
+    spike_times_last_iter = spike_times[mask]
+    spike_senders_last_iter = spike_senders[mask]
+
+    n_neurons = len(network.nrns_rec)
+    iter_duration_s = iter_duration_ms / 1000.0
+
+    if n_neurons > 0 and iter_duration_s > 0:
+        n_spikes_last_iter = len(spike_times_last_iter)
+        mean_firing_rate_hz = n_spikes_last_iter / (n_neurons * iter_duration_s)
+
+        rec_ids = np.asarray([nrn.global_id for nrn in network.nrns_rec])
+        spike_counts = np.zeros(n_neurons, dtype=float)
+        unique_senders, sender_counts = np.unique(
+            spike_senders_last_iter, return_counts=True
+        )
+        sender_to_index = {int(gid): idx for idx, gid in enumerate(rec_ids)}
+        for sender, count in zip(unique_senders, sender_counts):
+            sender_gid = int(getattr(sender, "global_id", sender))
+            neuron_index = sender_to_index.get(sender_gid)
+            if neuron_index is not None:
+                spike_counts[neuron_index] = float(count)
+
+        rate_per_neuron_hz = spike_counts / iter_duration_s
+        rate_mean = float(np.mean(rate_per_neuron_hz))
+        rate_std = float(np.std(rate_per_neuron_hz))
+        spike_rate_cv = float(rate_std / (abs(rate_mean) + 1e-12))
+    else:
+        mean_firing_rate_hz = 0.0
+        spike_rate_cv = 0.0
+
+    with open(artifacts_dir / "mean_firing_rate.json", "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "mean_firing_rate_hz": float(mean_firing_rate_hz),
+                "spike_rate_cv": float(spike_rate_cv),
+            },
+            f,
+        )
 
     # Plotting
     if config.plotting.do_plotting:

@@ -6,6 +6,7 @@ from motor_controller_model.sweep import (
     build_run_name,
     expand_run_specs,
     materialize_config,
+    compute_training_quality_metrics,
 )
 
 
@@ -45,3 +46,12 @@ def test_materialize_config_preserves_validation():
     config = materialize_config(base, {"task.input_shift_ms": 75.0, "task.n_iter": 5})
     assert config.task.input_shift_ms == 75.0
     assert config.task.n_iter == 5
+
+
+def test_compute_training_quality_metrics_penalizes_spike_rate_cv():
+    loss = [3.0, 2.0, 1.5, 1.0]
+
+    low_cv = compute_training_quality_metrics(loss, n_samples=2, spike_rate_cv=0.1)
+    high_cv = compute_training_quality_metrics(loss, n_samples=2, spike_rate_cv=2.0)
+
+    assert high_cv["training_success_score"] > low_cv["training_success_score"]
