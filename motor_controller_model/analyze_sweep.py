@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ DEFAULT_TRAINING_METRICS = [
     "training_success_score",
     "final_training_loss",
 ]
+ACTIVITY_TARGET_RATE_HZ = 10.0
+ACTIVITY_CV_WEIGHT = 0.35
 
 
 def load_json(path: Path) -> Any:
@@ -120,6 +123,20 @@ def extract_metric(record: dict[str, Any], metric_key: str) -> float | None:
     return None
 
 
+def compute_activity_metric(record: dict[str, Any]) -> float | None:
+    """Compute composite activity-balance metric: rate deviation + spike CV penalty.
+
+    Lower is better. Returns None if required fields are missing.
+    """
+    mean_rate = extract_metric(record, "mean_firing_rate_hz")
+    spike_cv = extract_metric(record, "spike_rate_cv")
+    if mean_rate is None or spike_cv is None:
+        return None
+
+    rate_penalty = abs(math.log((mean_rate + 1e-12) / ACTIVITY_TARGET_RATE_HZ))
+    return rate_penalty + ACTIVITY_CV_WEIGHT * max(0.0, spike_cv)
+
+
 def rank_completed_runs(
     records: list[dict[str, Any]], metric_key: str, mode: str
 ) -> list[tuple[float, dict[str, Any]]]:
@@ -131,7 +148,10 @@ def rank_completed_runs(
 
     usable: list[tuple[float, dict[str, Any]]] = []
     for record in completed:
-        metric_value = extract_metric(record, metric_key)
+        if metric_key == "activity_first":
+            metric_value = compute_activity_metric(record)
+        else:
+            metric_value = extract_metric(record, metric_key)
         if metric_value is not None:
             usable.append((metric_value, record))
 
@@ -144,10 +164,17 @@ def rank_completed_runs(
 
 
 def resolve_metric_key(records: list[dict[str, Any]], requested_metric: str) -> str:
-    """Resolve metric key, supporting an auto training-focused mode."""
+    """Resolve metric key, supporting an auto training-focused mode.
 
+    Auto mode prefers activity-first ranking if metrics are available, then falls
+    back to default training metrics.
+    """
     if requested_metric != "auto_training":
         return requested_metric
+
+    for record in records:
+        if compute_activity_metric(record) is not None:
+            return "activity_first"
 
     for candidate in DEFAULT_TRAINING_METRICS:
         for record in records:
@@ -219,7 +246,7 @@ def parse_args() -> argparse.Namespace:
         default="auto_training",
         help=(
             "Metric key in summary/manifest records (default: auto_training, "
-            "prefers training_success_score, falls back to final_training_loss)"
+            "prefers activity-first ranking, then training_success_score, then final_training_loss)"
         ),
     )
     parser.add_argument(

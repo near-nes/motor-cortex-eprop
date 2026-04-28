@@ -8,6 +8,7 @@ from motor_controller_model.sweep import (
     materialize_config,
     compute_training_quality_metrics,
 )
+from motor_controller_model.analyze_sweep import resolve_metric_key, rank_completed_runs
 
 
 def test_apply_dotted_override_updates_nested_dict():
@@ -55,3 +56,29 @@ def test_compute_training_quality_metrics_penalizes_spike_rate_cv():
     high_cv = compute_training_quality_metrics(loss, n_samples=2, spike_rate_cv=2.0)
 
     assert high_cv["training_success_score"] > low_cv["training_success_score"]
+
+
+def test_auto_training_ranks_activity_first():
+    """When activity metrics are available, auto_training should rank by balanced activity."""
+    records = [
+        {
+            "status": "completed",
+            "name": "high_rate_high_cv",
+            "mean_firing_rate_hz": 40.0,
+            "spike_rate_cv": 3.0,
+            "final_training_loss": 10.0,
+        },
+        {
+            "status": "completed",
+            "name": "target_rate_low_cv",
+            "mean_firing_rate_hz": 10.0,
+            "spike_rate_cv": 1.0,
+            "final_training_loss": 100.0,
+        },
+    ]
+
+    metric_key = resolve_metric_key(records, "auto_training")
+    assert metric_key == "activity_first"
+
+    ranked = rank_completed_runs(records, metric_key, "min")
+    assert ranked[0][1]["name"] == "target_rate_low_cv"
