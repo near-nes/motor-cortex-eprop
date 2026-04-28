@@ -18,16 +18,25 @@ training:
       target_angle_deg: 20.0
 
 rbf:
-  sdev_hz: 3600.0
+  sdev_hz: 1800.0
   max_peak_rate_hz: 800.0
-  num_centers: 15
+  num_centers: 25
 
 synapses:
   w_input: 1.0
   w_rec: 4.0
   inh:
     plastic: true
+    optimizer:
+      eta: 1e-5
+      Wmin: -1000.0
+      Wmax: 0.0
+  exc:
+    optimizer:
+      eta: 1e-5
+      Wmin: 0.0
+      Wmax: 1000.0
 
 neurons:
   rec:
-    c_reg: 1.0
+    c_reg: 50.0
