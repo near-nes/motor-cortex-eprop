@@ -270,7 +270,7 @@ class InhSynapseConfig(BaseModel):
         default_factory=lambda: OptimizerConfig(Wmin=-1000.0, Wmax=0.0)
     )
     plastic: bool = Field(
-        default=False,
+        default=True,
         description="Enable plastic inhibitory recurrent synapses during training",
     )
     weight: float = Field(
