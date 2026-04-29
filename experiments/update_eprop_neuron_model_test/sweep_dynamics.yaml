@@ -1,16 +1,16 @@
 sweep_name: eprop_dynamics_opt
 base_config: update_eprop_neuron_model_opt_rbf.yaml
-output_dir: ../../results/sweeps
+output_dir: /projects/eprop_motor_net/default_eprop_model/sweeps
 nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
 force_retrain: true
 
-fixed_overrides:
-  task.n_iter: 50
+# fixed_overrides:
+#   task.n_iter: 500
 
 axes:
   rbf.buffer_size:
     - 10.0
-    - 20.0
+    - 30.0
     - 50.0
   rbf.num_centers:
     - 15
@@ -24,6 +24,16 @@ axes:
     - 200
     - 400
     - 500
+  rbf.sdev_hz:
+    - 1200.0
+    - 1800.0
+    - 2400.0
+    - 3000.0
+  neurons.rec.c_reg:
+    - 0.0
+    - 10.0
+    - 25.0
+    - 50.0
 
 # ========== Running analysis ==========
 # Sweep root: /home/shimoura/Github/motor-cortex-eprop/results/sweeps/eprop_dynamics_opt/20260428_214916

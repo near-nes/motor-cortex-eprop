@@ -17,8 +17,9 @@
 #SBATCH --time=08:00:00
 #SBATCH --output=report/slurm/m1_sweep_%A_%a.out
 #SBATCH --error=report/slurm/m1_sweep_%A_%a.err
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=24
 #SBATCH --mem=32G
+#SBATCH --partition=blaustein
 
 set -euo pipefail
 
@@ -28,6 +29,7 @@ REPO_ROOT="$(/usr/bin/git rev-parse --show-toplevel)"
 
 DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/update_eprop_neuron_model_test/sweep_dynamics.yaml"
 SPEC_PATH="$DEFAULT_SPEC_PATH"
+MAX_ARRAY_TASKS=1000
 
 parse_job_id() {
   local submit_output="$1"
@@ -89,17 +91,18 @@ PY
 }
 
 submit_analysis_job() {
-  local array_job_id="$1"
+  local array_job_ids="$1"
   local sweep_root="$2"
 
   local submit_out
   local report_dir="${REPO_ROOT}/report/slurm"
   mkdir -p "$report_dir"
   submit_out="$(sbatch \
-    --dependency "afterok:${array_job_id}" \
+    --dependency "afterok:${array_job_ids}" \
     --cpus-per-task 1 \
     --mem 4G \
     --time 00:30:00 \
+    --partition blaustein \
     --job-name m1_sweep_analyze \
     --output "$report_dir/m1_sweep_analyze_%j.out" \
     --error "$report_dir/m1_sweep_analyze_%j.err" \
@@ -108,7 +111,7 @@ submit_analysis_job() {
   local analysis_job_id
   analysis_job_id="$(parse_job_id "$submit_out")"
   if [[ "$analysis_job_id" =~ ^[0-9]+$ ]]; then
-    echo "Submitted analysis job $analysis_job_id (afterok:$array_job_id)"
+    echo "Submitted analysis job $analysis_job_id (afterok:$array_job_ids)"
   else
     echo "Submitted analysis dependency, raw response: $submit_out"
   fi
@@ -150,23 +153,37 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
 
   echo "Dispatching $RUNS runs with cpus-per-task $CPUS_PER_TASK"
   echo "Results will be saved to: $SWEEP_ROOT"
-  ARRAY_SUBMIT_OUT="$(sbatch \
-    --cpus-per-task "$CPUS_PER_TASK" \
-    --array "0-$((RUNS - 1))" \
-    --chdir "$REPO_ROOT" \
-    --output "$REPORT_DIR/m1_sweep_%A_%a.out" \
-    --error "$REPORT_DIR/m1_sweep_%A_%a.err" \
-    --export "ALL,SPEC_PATH=$SPEC_PATH,SWEEP_ROOT=$SWEEP_ROOT,REPO_ROOT=$REPO_ROOT" \
-    "$0")"
+  ARRAY_JOB_IDS=()
+  CHUNK_START=0
+  while (( CHUNK_START < RUNS )); do
+    CHUNK_END=$((CHUNK_START + MAX_ARRAY_TASKS - 1))
+    if (( CHUNK_END >= RUNS )); then
+      CHUNK_END=$((RUNS - 1))
+    fi
 
-  ARRAY_JOB_ID="$(parse_job_id "$ARRAY_SUBMIT_OUT")"
-  if [[ ! "$ARRAY_JOB_ID" =~ ^[0-9]+$ ]]; then
-    echo "Could not parse array job id from: $ARRAY_SUBMIT_OUT" >&2
-    exit 1
-  fi
+    CHUNK_SIZE=$((CHUNK_END - CHUNK_START + 1))
+    ARRAY_SUBMIT_OUT="$(sbatch \
+      --cpus-per-task "$CPUS_PER_TASK" \
+      --array "0-$((CHUNK_SIZE - 1))" \
+      --chdir "$REPO_ROOT" \
+      --output "$REPORT_DIR/m1_sweep_%A_%a.out" \
+      --error "$REPORT_DIR/m1_sweep_%A_%a.err" \
+      --export "ALL,SPEC_PATH=$SPEC_PATH,SWEEP_ROOT=$SWEEP_ROOT,REPO_ROOT=$REPO_ROOT,TASK_OFFSET=$CHUNK_START" \
+      "$0")"
 
-  echo "Submitted array job $ARRAY_JOB_ID"
-  submit_analysis_job "$ARRAY_JOB_ID" "$SWEEP_ROOT"
+    ARRAY_JOB_ID="$(parse_job_id "$ARRAY_SUBMIT_OUT")"
+    if [[ ! "$ARRAY_JOB_ID" =~ ^[0-9]+$ ]]; then
+      echo "Could not parse array job id from: $ARRAY_SUBMIT_OUT" >&2
+      exit 1
+    fi
+
+    echo "Submitted array job $ARRAY_JOB_ID for tasks $CHUNK_START-$CHUNK_END"
+    ARRAY_JOB_IDS+=("$ARRAY_JOB_ID")
+    CHUNK_START=$((CHUNK_END + 1))
+  done
+
+  ANALYSIS_DEPENDENCY="$(IFS=:; echo "${ARRAY_JOB_IDS[*]}")"
+  submit_analysis_job "$ANALYSIS_DEPENDENCY" "$SWEEP_ROOT"
   exit 0
 fi
 
@@ -176,8 +193,16 @@ if [[ -z "${SWEEP_ROOT:-}" ]]; then
   exit 1
 fi
 
+TASK_OFFSET="${TASK_OFFSET:-0}"
+if [[ ! "$TASK_OFFSET" =~ ^[0-9]+$ ]]; then
+  echo "TASK_OFFSET must be a non-negative integer" >&2
+  exit 1
+fi
+
+TASK_INDEX="$((TASK_OFFSET + SLURM_ARRAY_TASK_ID))"
+
 cd "$REPO_ROOT"
-echo "Worker $SLURM_ARRAY_TASK_ID: Working directory: $(pwd)"
+echo "Worker $SLURM_ARRAY_TASK_ID (global $TASK_INDEX): Working directory: $(pwd)"
 
 # Activate environment
 source "$REPO_ROOT/env_load_hambach.sh"
@@ -193,4 +218,4 @@ python -c "import motor_controller_model; print('Module OK')" || {
 python -m motor_controller_model.sweep \
   --spec "$SPEC_PATH" \
   --sweep-root "$SWEEP_ROOT" \
-  --task-index "$SLURM_ARRAY_TASK_ID"
+  --task-index "$TASK_INDEX"
