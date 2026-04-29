@@ -11,25 +11,23 @@
 #   - submits dependent best-run analysis job
 # - Worker job (with SLURM_ARRAY_TASK_ID): runs one sweep condition.
 #
-# To change parallelism, edit PARALLEL_JOBS below.
+# Slurm will schedule jobs based on available resources.
 
 #SBATCH --job-name=m1_sweep
+#SBATCH --time=08:00:00
 #SBATCH --output=report/slurm/m1_sweep_%A_%a.out
 #SBATCH --error=report/slurm/m1_sweep_%A_%a.err
-#SBATCH --time=08:00:00
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=24G
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=32G
 
 set -euo pipefail
 
-SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+# Get repo root from current working directory (SLURM_SUBMIT_DIR)
+# This works because Slurm jobs start in the submission directory
+REPO_ROOT="$(/usr/bin/git rev-parse --show-toplevel)"
 
-DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml"
+DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/update_eprop_neuron_model_test/sweep_dynamics.yaml"
 SPEC_PATH="$DEFAULT_SPEC_PATH"
-PARALLEL_JOBS=20
 
 parse_job_id() {
   local submit_output="$1"
@@ -95,15 +93,17 @@ submit_analysis_job() {
   local sweep_root="$2"
 
   local submit_out
+  local report_dir="${REPO_ROOT}/report/slurm"
+  mkdir -p "$report_dir"
   submit_out="$(sbatch \
     --dependency "afterok:${array_job_id}" \
     --cpus-per-task 1 \
     --mem 4G \
     --time 00:30:00 \
     --job-name m1_sweep_analyze \
-    --output report/slurm/m1_sweep_analyze_%j.out \
-    --error report/slurm/m1_sweep_analyze_%j.err \
-    --wrap "cd '$REPO_ROOT' && python -m motor_controller_model.analyze_sweep --sweep-root '$sweep_root' --promote")"
+    --output "$report_dir/m1_sweep_analyze_%j.out" \
+    --error "$report_dir/m1_sweep_analyze_%j.err" \
+    --wrap "bash -lc 'cd \"$REPO_ROOT\" && source \"$REPO_ROOT/env_load_hambach.sh\" && python -m motor_controller_model.analyze_sweep --sweep-root \"$sweep_root\" --promote'")"
 
   local analysis_job_id
   analysis_job_id="$(parse_job_id "$submit_out")"
@@ -119,12 +119,8 @@ if [[ ! -f "$SPEC_PATH" ]]; then
   exit 1
 fi
 
-if [[ ! "$PARALLEL_JOBS" =~ ^[0-9]+$ ]] || (( PARALLEL_JOBS < 1 )); then
-  echo "PARALLEL_JOBS must be a positive integer" >&2
-  exit 1
-fi
-
-mkdir -p "${REPO_ROOT}/report/slurm"
+REPORT_DIR="${REPO_ROOT}/report/slurm"
+mkdir -p "$REPORT_DIR"
 
 cd "$REPO_ROOT"
 
@@ -145,10 +141,6 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
     exit 1
   fi
 
-  if (( PARALLEL_JOBS > RUNS )); then
-    PARALLEL_JOBS="$RUNS"
-  fi
-
   if [[ -z "$SWEEP_ROOT" ]]; then
     echo "Could not resolve sweep output directory" >&2
     exit 1
@@ -156,12 +148,16 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
 
   mkdir -p "$SWEEP_ROOT"
 
-  echo "Dispatching $RUNS runs with max concurrency $PARALLEL_JOBS and cpus-per-task $CPUS_PER_TASK"
+  echo "Dispatching $RUNS runs with cpus-per-task $CPUS_PER_TASK"
+  echo "Results will be saved to: $SWEEP_ROOT"
   ARRAY_SUBMIT_OUT="$(sbatch \
     --cpus-per-task "$CPUS_PER_TASK" \
-    --array "0-$((RUNS - 1))%${PARALLEL_JOBS}" \
-    --export "ALL,SPEC_PATH=$SPEC_PATH,SWEEP_ROOT=$SWEEP_ROOT" \
-    "$SCRIPT_PATH")"
+    --array "0-$((RUNS - 1))" \
+    --chdir "$REPO_ROOT" \
+    --output "$REPORT_DIR/m1_sweep_%A_%a.out" \
+    --error "$REPORT_DIR/m1_sweep_%A_%a.err" \
+    --export "ALL,SPEC_PATH=$SPEC_PATH,SWEEP_ROOT=$SWEEP_ROOT,REPO_ROOT=$REPO_ROOT" \
+    "$0")"
 
   ARRAY_JOB_ID="$(parse_job_id "$ARRAY_SUBMIT_OUT")"
   if [[ ! "$ARRAY_JOB_ID" =~ ^[0-9]+$ ]]; then
@@ -179,6 +175,20 @@ if [[ -z "${SWEEP_ROOT:-}" ]]; then
   echo "SWEEP_ROOT is not set for worker mode" >&2
   exit 1
 fi
+
+cd "$REPO_ROOT"
+echo "Worker $SLURM_ARRAY_TASK_ID: Working directory: $(pwd)"
+
+# Activate environment
+source "$REPO_ROOT/env_load_hambach.sh"
+echo "Worker $SLURM_ARRAY_TASK_ID: Python: $(which python)"
+echo "Worker $SLURM_ARRAY_TASK_ID: LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+
+# Verify module import
+python -c "import motor_controller_model; print('Module OK')" || {
+  echo "Worker $SLURM_ARRAY_TASK_ID: Failed to import motor_controller_model" >&2
+  exit 1
+}
 
 python -m motor_controller_model.sweep \
   --spec "$SPEC_PATH" \
