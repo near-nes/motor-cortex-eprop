@@ -183,8 +183,14 @@ class RBFConfig(BaseModel):
     )
 
 
-class RecurrentNeuronConfig(BaseModel):
-    """Recurrent neuron parameters."""
+class RecurrentNeuronCommon(BaseModel):
+    """Shared fields for recurrent neuron parameter sets.
+
+    This class contains parameters common to both regular and adaptive LIF
+    neuron models. Keeping them in a common base makes it easy to reuse and
+    instantiate model-specific subclasses while preserving a flat, backward
+    compatible configuration surface via `RecurrentNeuronConfig`.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -216,6 +222,66 @@ class RecurrentNeuronConfig(BaseModel):
     surrogate_gradient_function: str = Field(
         default="piecewise_linear", description="Surrogate gradient function"
     )
+
+
+class RecurrentNeuronAdaptive(RecurrentNeuronCommon):
+    """Adaptive LIF parameters (subtype of RecurrentNeuronCommon)."""
+
+    adapt_beta: float = Field(
+        default=1.0,
+        description=(
+            "Adaptation scaling (dimensionless). Used by LIF-adapt neuron models "
+            "to scale the adaptation current."
+        ),
+    )
+    adapt_tau: float = Field(
+        default=10.0,
+        description=(
+            "Adaptation time constant (ms) for LIF-adapt neuron models. Controls "
+            "the decay of the adaptation current."
+        ),
+    )
+
+
+class RecurrentNeuronConfig(RecurrentNeuronAdaptive):
+    """Recurrent neuron parameters (backwards-compatible surface).
+
+    This class remains the configuration object used throughout the codebase
+    but exposes convenience accessors to obtain subtype instances suitable for
+    model-specific usage (e.g. passing parameters to `eprop_iaf` vs
+    `eprop_iaf_adapt`).
+
+    Inherit from `RecurrentNeuronAdaptive` so adaptive keys are part of the
+    canonical schema and therefore included in YAML/dict dumps and available
+    when creating adaptive neuron populations.
+    """
+
+    # Provide properties to access grouped/subtype views without changing
+    # how the rest of the code constructs or reads `NeuronsConfig.rec`.
+    def as_common(self) -> RecurrentNeuronCommon:
+        # Exclude adaptive-only keys so constructing the common view
+        # doesn't fail validation when adapt fields are present.
+        data = self.model_dump(exclude={"adapt_beta", "adapt_tau"})
+        return RecurrentNeuronCommon(**data)
+
+    def as_adaptive(self) -> RecurrentNeuronAdaptive:
+        return RecurrentNeuronAdaptive(**self.model_dump())
+
+    def to_nest_params(self, step_ms: float, include_adapt: bool = False) -> dict:
+        """
+        Produce a NEST-friendly parameter dictionary.
+
+        - Converts `eligibility_tau_ms` and `tau_reg_ms` into `kappa` factors.
+        - When `include_adapt` is False, adaptation keys are removed so the
+          resulting dict can be safely passed to non-adaptive neuron models.
+        """
+        params = self.model_dump(exclude={"eligibility_tau_ms", "tau_reg_ms"})
+        params["kappa"] = float(math.exp(-step_ms / self.eligibility_tau_ms))
+        params["kappa_reg"] = float(math.exp(-step_ms / self.tau_reg_ms))
+        if not include_adapt:
+            params.pop("adapt_beta", None)
+            params.pop("adapt_tau", None)
+        return params
 
 
 class OutputNeuronConfig(BaseModel):
