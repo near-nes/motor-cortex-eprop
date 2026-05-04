@@ -16,7 +16,7 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 
 DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/updated_eprop_model_sweep/reduced_time_sequence_sweep.yaml"
 SPEC_PATH="$DEFAULT_SPEC_PATH"
-PARALLEL_JOBS=4  # Conservative default for 16 cores, 20GB RAM
+PARALLEL_JOBS=8  # Conservative default for 16 cores, 20GB RAM
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
