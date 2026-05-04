@@ -5,26 +5,11 @@ nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_m
 force_retrain: true
 
 # fixed_overrides:
-#   task.n_iter: 500
+#   synapses.exc.optimizer.eta: 1e-5
+#   synapses.inh.optimizer.eta: 1e-5
 
 axes:
   neurons.n_rec:
     - 300
     - 400
     - 500
-  synapses.w_input:
-    - 0.6
-    - 0.8
-    - 1.0
-  synapses.w_rec:
-    - 0.1
-    - 0.5
-    - 1.0
-  rbf.max_peak_rate_hz:
-    - 200.0
-    - 400.0
-    - 500.0
-  rbf.sdev_hz:
-    - 2000.0
-    - 3000.0
-    - 4000.0
