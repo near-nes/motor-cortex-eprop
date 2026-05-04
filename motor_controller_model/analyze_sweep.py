@@ -243,9 +243,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--metric",
         type=str,
-        default="auto_training",
+        default="training_success_score",
         help=(
-            "Metric key in summary/manifest records (default: auto_training, "
+            "Metric key in summary/manifest records (default: training_success_score, "
             "prefers activity-first ranking, then training_success_score, then final_training_loss)"
         ),
     )

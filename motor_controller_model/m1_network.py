@@ -166,19 +166,28 @@ class M1Network:
         # 2. Create Recurrent & Output Neurons
         n_rec = self.config.neurons.n_rec
         n_per_channel = n_out // 2
-        n_exc = int(n_rec * self.config.neurons.exc_ratio)
+        n_exc = self.config.neurons.n_exc
+        n_exc_adapt = self.config.neurons.n_exc_adapt
+        n_exc_regular = self.config.neurons.n_exc_regular
+        n_inh = n_rec - n_exc
         rec_cfg = self.config.neurons.rec
         rec_params = rec_cfg.model_dump(exclude={"eligibility_tau_ms", "tau_reg_ms"})
         rec_params["kappa"] = float(np.exp(-step_ms / rec_cfg.eligibility_tau_ms))
         rec_params["kappa_reg"] = float(np.exp(-step_ms / rec_cfg.tau_reg_ms))
 
-        self.nrns_rec = nest.Create(
-            "eprop_iaf", n_exc, rec_params
-        ) + nest.Create(
-            "eprop_iaf",
-            n_rec - n_exc,
-            rec_params,
-        )
+        recurrent_parts = []
+        if n_exc_regular:
+            recurrent_parts.append(nest.Create("eprop_iaf", n_exc_regular, rec_params))
+        if n_exc_adapt:
+            recurrent_parts.append(
+                nest.Create("eprop_iaf_adapt", n_exc_adapt, rec_params)
+            )
+        if n_inh:
+            recurrent_parts.append(nest.Create("eprop_iaf", n_inh, rec_params))
+
+        self.nrns_rec = recurrent_parts[0]
+        for part in recurrent_parts[1:]:
+            self.nrns_rec += part
         # Set initial states of recurrent neurons to random values to break symmetry.
         v_m_init = np.random.uniform(
             self.config.neurons.rec.E_L, 

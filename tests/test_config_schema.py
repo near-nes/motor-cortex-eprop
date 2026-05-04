@@ -80,6 +80,22 @@ def test_inhibitory_plasticity_flag_defaults_and_override():
     assert overridden_cfg.synapses.inh.plastic is True
 
 
+def test_adaptive_excitatory_fraction_derives_population_counts():
+    cfg = MotorControllerConfig.model_validate(
+        {
+            "neurons": {
+                "n_rec": 100,
+                "exc_ratio": 0.8,
+                "exc_adapt_ratio": 0.25,
+            }
+        }
+    )
+
+    assert cfg.neurons.n_exc == 80
+    assert cfg.neurons.n_exc_adapt == 20
+    assert cfg.neurons.n_exc_regular == 60
+
+
 if __name__ == "__main__":
     success = test_config_loading()
     exit(0 if success else 1)

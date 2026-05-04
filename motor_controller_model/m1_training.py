@@ -409,7 +409,7 @@ def train_m1(
             nrns_rb=network.nrns_rb,
         )
         weight_colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
-        n_exc = int(config.neurons.n_rec * config.neurons.exc_ratio)
+        n_exc = config.neurons.n_exc
         plot_weight_matrices(
             weights_pre,
             weights_post,

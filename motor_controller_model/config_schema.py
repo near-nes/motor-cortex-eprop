@@ -1,6 +1,7 @@
 """Pydantic schema for motor controller model configuration."""
 
 import hashlib
+import math
 from pathlib import Path
 from typing import List, Literal
 
@@ -236,8 +237,32 @@ class NeuronsConfig(BaseModel):
         default=0.8,
         description="Fraction of excitatory neurons in recurrent population",
     )
+    exc_adapt_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Fraction of excitatory neurons that should use the eprop_iaf_adapt "
+            "model"
+        ),
+    )
     rec: RecurrentNeuronConfig = Field(default_factory=RecurrentNeuronConfig)
     out: OutputNeuronConfig = Field(default_factory=OutputNeuronConfig)
+
+    @property
+    def n_exc(self) -> int:
+        return int(self.n_rec * self.exc_ratio)
+
+    @property
+    def n_exc_adapt(self) -> int:
+        return min(
+            self.n_exc,
+            int(math.floor(self.n_exc * self.exc_adapt_ratio + 0.5)),
+        )
+
+    @property
+    def n_exc_regular(self) -> int:
+        return self.n_exc - self.n_exc_adapt
 
 
 class OptimizerConfig(BaseModel):
