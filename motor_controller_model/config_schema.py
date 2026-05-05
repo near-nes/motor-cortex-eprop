@@ -18,7 +18,7 @@ class SimulationConfig(BaseModel):
     rng_seed: int = Field(default=1234, description="Random seed for reproducibility")
     print_time: bool = Field(default=False, description="Print simulation progress")
     total_num_virtual_procs: int = Field(
-        default=4, description="Number of virtual processes for NEST"
+        default=24, description="Number of virtual processes for NEST"
     )
     step: float = Field(default=1.0, description="Simulation time step (ms)")
 
