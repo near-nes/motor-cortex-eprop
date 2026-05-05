@@ -18,7 +18,7 @@ class SimulationConfig(BaseModel):
     rng_seed: int = Field(default=1234, description="Random seed for reproducibility")
     print_time: bool = Field(default=False, description="Print simulation progress")
     total_num_virtual_procs: int = Field(
-        default=16, description="Number of virtual processes for NEST"
+        default=24, description="Number of virtual processes for NEST"
     )
     step: float = Field(default=1.0, description="Simulation time step (ms)")
 
@@ -29,13 +29,13 @@ class TaskConfig(BaseModel):
     gradient_batch_size: int = Field(
         default=1, description="Batch size for gradient computation"
     )
-    n_iter: int = Field(default=200, description="Number of training iterations")
+    n_iter: int = Field(default=500, description="Number of training iterations")
     input_shift_ms: float = Field(
         default=50.0,
         description="Temporal delay to shift M1 target forward (ms)",
     )
     learning_start_ms: float = Field(
-        default=600.0,
+        default=1.0,
         description="Absolute start time (ms) for learning window within each sequence. "
         "This drives the explicit eprop_readout learning-window generator (receptor 1). "
         "E.g. with sequence=1150ms and learning_start_ms=600ms, learning is active "
@@ -83,13 +83,13 @@ class TrainingSignalConfig(BaseModel):
         default=0.00189, description="Moment of inertia for 1-DOF robot (kg·m²)"
     )
     time_prep_ms: float = Field(
-        default=50.0, description="Preparation phase duration (ms)"
+        default=650.0, description="Preparation phase duration (ms)"
     )
     time_move_ms: float = Field(
         default=500.0, description="Movement phase duration (ms)"
     )
     time_post_ms: float = Field(
-        default=0.0, description="Post-movement phase duration (ms)"
+        default=350.0, description="Post-movement phase duration (ms)"
     )
 
     @property
@@ -153,7 +153,7 @@ class RBFConfig(BaseModel):
     """
 
     num_centers: int = Field(
-        default=20, description="Number of RBF centers for input encoding"
+        default=15, description="Number of RBF centers for input encoding"
     )
     desired_min_rate: float = Field(
         default=0.0, description="Lower bound of desired-rate linspace (Hz)"
@@ -170,10 +170,10 @@ class RBFConfig(BaseModel):
     )
     base_rate: float = Field(default=0.0, description="Base firing rate in Hz")
     buffer_size: float = Field(
-        default=10.0, description="Size of the sliding window in ms"
+        default=30.0, description="Size of the sliding window in ms"
     )
     sdev_hz: float = Field(
-        default=3600.0,
+        default=2400.0,
         description="Gaussian width for rb_neurons (Hz). Controls selectivity: "
         "smaller values make each center respond more narrowly to its preferred input rate.",
     )
@@ -204,7 +204,7 @@ class RecurrentNeuronCommon(BaseModel):
     V_th: float = Field(default=-50.0, description="Spike threshold (mV)")
 
     # E-prop specific parameters
-    c_reg: float = Field(default=0.0, description="Regularization constant")
+    c_reg: float = Field(default=25.0, description="Regularization constant")
     f_target: float = Field(default=10.0, description="Target firing rate (Hz)")
     beta: float = Field(
         default=1.0,
@@ -297,14 +297,14 @@ class OutputNeuronConfig(BaseModel):
 class NeuronsConfig(BaseModel):
     """Neuron parameters."""
 
-    n_rec: int = Field(default=300, description="Number of recurrent neurons")
+    n_rec: int = Field(default=400, description="Number of recurrent neurons")
     n_out: int = Field(default=2, description="Number of output neurons")
     exc_ratio: float = Field(
         default=0.8,
         description="Fraction of excitatory neurons in recurrent population",
     )
     exc_adapt_ratio: float = Field(
-        default=0.0,
+        default=0.25,
         ge=0.0,
         le=1.0,
         description=(
@@ -350,7 +350,7 @@ class ExcSynapseConfig(BaseModel):
     """Excitatory synapse parameters."""
 
     optimizer: OptimizerConfig = Field(
-        default_factory=lambda: OptimizerConfig(Wmin=0.0, Wmax=1000.0)
+        default_factory=lambda: OptimizerConfig(eta=1.0e-05, Wmin=0.0, Wmax=1000.0)
     )
 
 
@@ -358,7 +358,7 @@ class InhSynapseConfig(BaseModel):
     """Inhibitory synapse parameters."""
 
     optimizer: OptimizerConfig = Field(
-        default_factory=lambda: OptimizerConfig(Wmin=-1000.0, Wmax=0.0)
+        default_factory=lambda: OptimizerConfig(eta=1.0e-05, Wmin=-1000.0, Wmax=0.0)
     )
     plastic: bool = Field(
         default=True,
@@ -372,8 +372,8 @@ class InhSynapseConfig(BaseModel):
 class SynapsesConfig(BaseModel):
     """Synapse parameters."""
 
-    w_input: float = Field(default=20.0, description="Default synaptic weight (pA)")
-    w_rec: float = Field(default=20.0, description="Recurrent synaptic weight (pA)")
+    w_input: float = Field(default=1.0, description="Default synaptic weight (pA)")
+    w_rec: float = Field(default=4.0, description="Recurrent synaptic weight (pA)")
     g: float = Field(default=4.0, description="Inhibitory/excitatory weight ratio")
     conn_bernoulli_p: float = Field(
         default=0.1, description="Connection probability for recurrent connections"
