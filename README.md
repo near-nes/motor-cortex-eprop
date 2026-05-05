@@ -17,7 +17,7 @@ Colors and shapes explicitly encode network roles: labeled input neurons (left),
 - [`motor_controller_model/`](motor_controller_model/) — Main package containing all code for running motor control experiments, training spiking networks, analyzing results, and visualizing outputs. See its [README](motor_controller_model/README.md) for detailed usage and options.
 - [`motor_controller_model/dataset_motor_training/`](motor_controller_model/dataset_motor_training/) — Contains trajectory data, spike datasets, and utilities for dataset handling. Includes a [README](motor_controller_model/dataset_motor_training/README.md) describing the dataset format.
 - [`motor_controller_model/nestml_neurons/`](motor_controller_model/nestml_neurons/) — NESTML neuron model files and scripts for compiling custom neuron modules. See its [README](motor_controller_model/nestml_neurons/README.md) for details.
-- `sim_results/` — Output directory for simulation results, plots, and data (created automatically).
+- `results/` — Output directory for simulation results, plots, and data (created automatically).
 - [`environment.yml`](environment.yml) — Conda/mamba environment specification with all required dependencies.
 - [`pyproject.toml`](pyproject.toml) — Python package configuration and pip dependencies.
 

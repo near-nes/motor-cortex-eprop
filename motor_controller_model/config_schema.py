@@ -18,7 +18,7 @@ class SimulationConfig(BaseModel):
     rng_seed: int = Field(default=1234, description="Random seed for reproducibility")
     print_time: bool = Field(default=False, description="Print simulation progress")
     total_num_virtual_procs: int = Field(
-        default=24, description="Number of virtual processes for NEST"
+        default=4, description="Number of virtual processes for NEST"
     )
     step: float = Field(default=1.0, description="Simulation time step (ms)")
 
@@ -31,7 +31,7 @@ class TaskConfig(BaseModel):
     )
     n_iter: int = Field(default=500, description="Number of training iterations")
     input_shift_ms: float = Field(
-        default=50.0,
+        default=100.0,
         description="Temporal delay to shift M1 target forward (ms)",
     )
     learning_start_ms: float = Field(
@@ -57,13 +57,6 @@ class TrainingSignalConfig(BaseModel):
         default_factory=lambda: [
             TrajectorySpec(init_angle_deg=90, target_angle_deg=140),
             TrajectorySpec(init_angle_deg=90, target_angle_deg=20),
-            # TrajectorySpec(init_angle_deg=0, target_angle_deg=90),
-            # TrajectorySpec(init_angle_deg=90, target_angle_deg=90),
-            # TrajectorySpec(init_angle_deg=90, target_angle_deg=20),
-            # TrajectorySpec(init_angle_deg=20, target_angle_deg=20),
-            # TrajectorySpec(init_angle_deg=20, target_angle_deg=80),
-            # TrajectorySpec(init_angle_deg=80, target_angle_deg=140),
-            # TrajectorySpec(init_angle_deg=90, target_angle_deg=90),
         ]
     )
     n_input_neurons: int = Field(

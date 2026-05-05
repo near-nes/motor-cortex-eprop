@@ -20,7 +20,7 @@ dist/
 *.pyd
 
 # Simulation results and reports
-sim_results/
+results/
 report/
 
 # NESTML build outputs

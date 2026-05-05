@@ -101,7 +101,7 @@ def plot_all_loss_curves(
 
     Usage:
         python -m motor_controller_model.plot_results
-    Outputs are saved in sim_results/ at the repository root.
+    Outputs are saved in results/ at the repository root.
     """
     import glob
 

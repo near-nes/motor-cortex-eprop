@@ -17,7 +17,7 @@ All main code is now located in the `motor_controller_model/` package directory.
 - [`utils.py`](utils.py): Shared utilities
 - [`nestml_neurons/`](nestml_neurons/): Custom NESTML neuron models and compilation script
 
-**Note:** Simulation results are saved in the `sim_results/` directory at the repository root, not within this package directory.
+**Note:** Simulation results are saved in the `results/` directory at the repository root, not within this package directory.
 
 ## Usage
 
@@ -103,7 +103,7 @@ By default, the best run is copied to `<sweep_root>/best/`. You can override thi
 
 ## Results
 
-Simulation results and plots are saved in the `sim_results/` directory at the repository root, organized by experiment configuration. Each run creates a subfolder with files such as:
+Simulation results and plots are saved in the `results/` directory at the repository root, organized by experiment configuration. Each run creates a subfolder with files such as:
 
 - `training_error.png`: The training loss curve.
 - `spikes_and_dynamics.png`: Visualization of network activity.
