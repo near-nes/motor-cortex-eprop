@@ -493,7 +493,7 @@ def main() -> None:
     args = parse_args()
     spec = load_spec(args.spec)
 
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent
     base_config_path = resolve_base_config_path(spec, args.spec)
     base_config = MotorControllerConfig.from_yaml(base_config_path)
 

@@ -35,7 +35,7 @@ def get_git_commit_hash(repo_dir: Path) -> str:
 
 
 def _stamp_config(config: MotorControllerConfig) -> None:
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent
     config.git_commit = get_git_commit_hash(repo_root)
 
 

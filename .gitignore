@@ -1,17 +1,7 @@
-# Python package metadata
-motor_controller_model.egg-info/
-
-# Jupyter notebook checkpoints
-.ipynb_checkpoints/
-
-# OS-specific files
-.DS_Store
-Thumbs.db
-
-# Python cache
-motor_controller_model/**/__pycache__/
-__pycache__/
-dataset_motor_training/**/__pycache__/
+__pycache__
+**/.ipynb_*
+*.egg-info/
+.venv/
 
 # Build artifacts
 build/
@@ -23,10 +13,10 @@ dist/
 report/
 
 # NESTML build outputs
-motor_controller_model/nestml_neurons/nestml_target/
-motor_controller_model/nestml_neurons/report/
-motor_controller_model/testing_nestml_neurons/target/
-motor_controller_model/testing_nestml_neurons/report/
+src/motor_controller_model/nestml_neurons/nestml_target/
+src/motor_controller_model/nestml_neurons/report/
+outdated/testing_nestml_neurons/target/
+outdated/testing_nestml_neurons/report/
 
 # Ignore environment files
 venv/

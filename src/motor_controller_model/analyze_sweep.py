@@ -63,7 +63,7 @@ def resolve_sweep_root(*, spec_path: Path | None, sweep_root: Path | None, lates
         raise ValueError("Provide either --sweep-root, or --spec with --latest")
 
     spec = load_spec(spec_path)
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent
     output_dir_ref = Path(spec.get("output_dir", repo_root / "results" / "sweeps"))
     output_dir = (
         output_dir_ref
