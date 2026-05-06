@@ -10,10 +10,9 @@ import nest
 import numpy as np
 import structlog
 
-from .m1_network import M1Network
-
 from .config_schema import MotorControllerConfig, TrainingTimings
 from .m1_factory import get_m1_or_train
+from .m1_network import M1Network
 from .signals import generate_training_signals
 from .utils import install_nestml_module
 

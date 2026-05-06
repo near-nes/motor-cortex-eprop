@@ -191,9 +191,9 @@ class M1Network:
             self.nrns_rec += part
         # Set initial states of recurrent neurons to random values to break symmetry.
         v_m_init = np.random.uniform(
-            self.config.neurons.rec.E_L, 
-            self.config.neurons.rec.V_th, 
-            len(self.nrns_rec)
+            self.config.neurons.rec.E_L,
+            self.config.neurons.rec.V_th,
+            len(self.nrns_rec),
         )
         nest.SetStatus(self.nrns_rec, "V_m", v_m_init)
 
@@ -311,9 +311,9 @@ class M1Network:
             ),
         }
         params_syn_rec_inh = {
-            "synapse_model": "eprop_synapse_m1_inh"
-            if syn_cfg.inh.plastic
-            else "static_synapse",
+            "synapse_model": (
+                "eprop_synapse_m1_inh" if syn_cfg.inh.plastic else "static_synapse"
+            ),
             "delay": step_ms,
             "weight": nest.math.redraw(
                 nest.random.normal(mean=-w_rec * g, std=g * w_rec * 0.1),

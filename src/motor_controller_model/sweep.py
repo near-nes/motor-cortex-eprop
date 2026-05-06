@@ -8,11 +8,11 @@ import json
 import subprocess
 import sys
 import time
-import numpy as np
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import yaml
 
 from .config_schema import MotorControllerConfig
@@ -332,9 +332,7 @@ def compute_training_quality_metrics(
         "mean_firing_rate_hz": (
             mean_firing_rate_hz if mean_firing_rate_hz is not None else float("nan")
         ),
-        "spike_rate_cv": (
-            spike_rate_cv if spike_rate_cv is not None else float("nan")
-        ),
+        "spike_rate_cv": (spike_rate_cv if spike_rate_cv is not None else float("nan")),
         "training_success_score": success_score,
         "training_success": success,
     }

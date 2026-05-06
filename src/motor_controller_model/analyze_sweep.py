@@ -15,7 +15,6 @@ from typing import Any
 
 import yaml
 
-
 DEFAULT_TRAINING_METRICS = [
     "training_success_score",
     "final_training_loss",
@@ -53,7 +52,9 @@ def load_spec(path: Path) -> dict[str, Any]:
     return payload
 
 
-def resolve_sweep_root(*, spec_path: Path | None, sweep_root: Path | None, latest: bool) -> Path:
+def resolve_sweep_root(
+    *, spec_path: Path | None, sweep_root: Path | None, latest: bool
+) -> Path:
     """Resolve sweep output root from explicit path or spec + latest folder."""
 
     if sweep_root is not None:
@@ -74,14 +75,18 @@ def resolve_sweep_root(*, spec_path: Path | None, sweep_root: Path | None, lates
     candidates_root = (output_dir / sweep_name).resolve()
 
     if not latest:
-        raise ValueError("When using --spec, also pass --latest or provide --sweep-root")
+        raise ValueError(
+            "When using --spec, also pass --latest or provide --sweep-root"
+        )
 
     if not candidates_root.exists():
         raise FileNotFoundError(f"Sweep directory not found: {candidates_root}")
 
     candidates = [p for p in candidates_root.iterdir() if p.is_dir()]
     if not candidates:
-        raise FileNotFoundError(f"No timestamped sweep directories under: {candidates_root}")
+        raise FileNotFoundError(
+            f"No timestamped sweep directories under: {candidates_root}"
+        )
 
     # Sweep directories use timestamp names (YYYYMMDD_HHMMSS), so lexical sort works.
     return sorted(candidates)[-1]
@@ -210,7 +215,9 @@ def promote_best_run(
     best_run_dir = resolve_best_run_dir(best_record, sweep_root)
 
     default_promote_root = sweep_root / "best"
-    destination = promote_dir.resolve() if promote_dir is not None else default_promote_root
+    destination = (
+        promote_dir.resolve() if promote_dir is not None else default_promote_root
+    )
 
     if destination.exists():
         shutil.rmtree(destination)
@@ -222,7 +229,9 @@ def promote_best_run(
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
 
-    parser = argparse.ArgumentParser(description="Analyze a sweep and report the best run")
+    parser = argparse.ArgumentParser(
+        description="Analyze a sweep and report the best run"
+    )
     parser.add_argument(
         "--sweep-root",
         type=Path,

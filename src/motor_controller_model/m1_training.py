@@ -2,14 +2,13 @@
 m1_training: Standalone training function for the M1 e-prop network.
 """
 
+import json
 from pathlib import Path
 from typing import List
 
 import nest
 import numpy as np
 import structlog
-import json
-
 
 from .config_schema import MotorControllerConfig, TrainingTimings
 from .m1_network import M1Network, get_weights
@@ -344,7 +343,9 @@ def train_m1(
     np.save(artifacts_dir / "training_loss.npy", loss)
 
     # Calculate the duration of a single training iteration (all trajectories combined)
-    iter_duration_ms = timings.n_timesteps_per_sequence * timings.n_samples * timings.step_ms
+    iter_duration_ms = (
+        timings.n_timesteps_per_sequence * timings.n_samples * timings.step_ms
+    )
     last_iter_start_ms = timings.task_ms - iter_duration_ms
 
     events_rec = spike_recorder.get("events")

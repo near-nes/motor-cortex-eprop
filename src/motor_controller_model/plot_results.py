@@ -299,22 +299,47 @@ def plot_spikes_and_dynamics(
             axs[row + 1, col], events_mm_rec, "V_m", r"$v_j$ (mV)", xlims, rec_colors
         )
         plot_recordable(
-            axs[row + 2, col], events_mm_rec, "surrogate_gradient", r"$\psi_j$", xlims, rec_colors
+            axs[row + 2, col],
+            events_mm_rec,
+            "surrogate_gradient",
+            r"$\psi_j$",
+            xlims,
+            rec_colors,
         )
         plot_recordable(
-            axs[row + 3, col], events_mm_rec, "learning_signal", r"$L_j$ (pA)", xlims, rec_colors
+            axs[row + 3, col],
+            events_mm_rec,
+            "learning_signal",
+            r"$L_j$ (pA)",
+            xlims,
+            rec_colors,
         )
         plot_recordable(
             axs[row + 4, col], events_mm_out, "V_m", r"$v_k$ (mV)", xlims, out_colors
         )
         plot_recordable(
-            axs[row + 5, col], events_mm_out, "target_signal", r"$y^*_k$", xlims, out_colors
+            axs[row + 5, col],
+            events_mm_out,
+            "target_signal",
+            r"$y^*_k$",
+            xlims,
+            out_colors,
         )
         plot_recordable(
-            axs[row + 6, col], events_mm_out, "readout_signal", r"$y_k$", xlims, out_colors
+            axs[row + 6, col],
+            events_mm_out,
+            "readout_signal",
+            r"$y_k$",
+            xlims,
+            out_colors,
         )
         plot_recordable(
-            axs[row + 7, col], events_mm_out, "error_signal", r"$y_k-y^*_k$", xlims, out_colors
+            axs[row + 7, col],
+            events_mm_out,
+            "error_signal",
+            r"$y_k-y^*_k$",
+            xlims,
+            out_colors,
         )
 
     # Draw M1 sequence phase overlays on both columns
@@ -485,10 +510,16 @@ def plot_weight_matrices(
 
         if n_exc is not None:
             # Rec->Rec: both axes are recurrent neurons.
-            axs[0, i].axvline(n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5)
-            axs[0, i].axhline(n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5)
+            axs[0, i].axvline(
+                n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5
+            )
+            axs[0, i].axhline(
+                n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5
+            )
             # Rec->Out: x-axis is recurrent neurons.
-            axs[1, i].axvline(n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5)
+            axs[1, i].axvline(
+                n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5
+            )
     axs[0, 0].set_ylabel("recurrent\nneurons")
     axs[1, 0].set_ylabel("readout\nneurons")
     fig.align_ylabels(axs[:, 0])
@@ -506,10 +537,10 @@ def plot_weight_matrices(
 
     # ===== FIGURE 2: rb_rec pre/post weight matrices =====
     fig2, axs2 = plt.subplots(1, 2, sharex="col", sharey="row", figsize=(10, 4))
-    
+
     w_pre = weights_pre_train["rb_rec"]
     w_post = weights_post_train["rb_rec"]
-    
+
     w_pre_matrix = reconstruct_weight_matrix(w_pre)
     w_post_matrix = reconstruct_weight_matrix(w_post)
 
@@ -522,19 +553,19 @@ def plot_weight_matrices(
 
     axs2[0].pcolormesh(w_pre_matrix, **args_rb)
     cmesh2 = axs2[1].pcolormesh(w_post_matrix, **args_rb)
-    
+
     axs2[0].set_ylabel("recurrent\nneurons")
     axs2[0].set_xlabel("RB\nneurons")
     axs2[1].set_xlabel("RB\nneurons")
     axs2[0].text(0.5, 1.1, "pre-training", transform=axs2[0].transAxes, ha="center")
     axs2[1].text(0.5, 1.1, "post-training", transform=axs2[1].transAxes, ha="center")
     axs2[0].yaxis.get_major_locator().set_params(integer=True)
-    
+
     fig2.tight_layout(rect=[0, 0, 0.88, 1])
     fig2.subplots_adjust(right=0.88)
     cbar_ax2 = fig2.add_axes([0.90, 0.20, 0.02, 0.6])
     cbar2 = plt.colorbar(cmesh2, cax=cbar_ax2, label="weight (pA)")
-    
+
     # Save with modified filename
     rb_rec_path = str(out_path).replace("weight_matrices.png", "rb_rec_weights.png")
     fig2.savefig(rb_rec_path, dpi=300)
