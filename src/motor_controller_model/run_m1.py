@@ -34,8 +34,10 @@ def run_inference_test(
         {
             "resolution": config.simulation.step,
             "total_num_virtual_procs": config.simulation.total_num_virtual_procs,
+            "rng_seed": config.simulation.rng_seed,
         }
     )
+    np.random.seed(config.simulation.rng_seed)
     install_nestml_module(nest_module)
 
     training_cfg = config.training

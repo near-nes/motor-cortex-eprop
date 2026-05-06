@@ -30,6 +30,7 @@ def setup_nest_kernel(
     """Reset NEST and configure kernel for M1 training."""
     nest.ResetKernel()
     install_nestml_module(nest_module)
+    np.random.seed(config.simulation.rng_seed)
     nest.set(
         print_time=config.simulation.print_time,
         resolution=config.simulation.step,
