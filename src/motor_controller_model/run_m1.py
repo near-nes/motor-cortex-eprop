@@ -42,7 +42,8 @@ def run_inference_test(
 
     training_cfg = config.training
     step_ms = timings.step_ms
-    n_trajectories = timings.n_samples
+    n_repeats = 2
+    n_trajectories = timings.n_samples * n_repeats
     # Run one configured sequence per trajectory.
     n_steps_per_seq = timings.n_timesteps_per_sequence
     sim_time_ms = n_steps_per_seq * n_trajectories * step_ms
@@ -57,7 +58,9 @@ def run_inference_test(
         for spec in training_cfg.trajectories
     ]
 
-    full_traj = np.concatenate([sig.input_trajectory for sig in all_signals])
+    full_traj = np.tile(
+        np.concatenate([sig.input_trajectory for sig in all_signals]), n_repeats
+    )
     # Pad trajectory to guarantee it covers the full simulation
     n_sim_steps = int(sim_time_ms / step_ms) + 1
     if len(full_traj) < n_sim_steps:
@@ -146,9 +149,8 @@ def run_inference_test(
     fig, axs = plt.subplots(4, 1, sharex=True, figsize=(10, 10), dpi=300)
 
     # Row 0: planner input trajectory
-    one_iter = np.concatenate([sig.input_trajectory for sig in all_signals])
-    t_traj = np.arange(len(one_iter)) * step_ms
-    axs[0].plot(t_traj, np.rad2deg(one_iter), lw=1.5, color="#1f77b4")
+    t_traj = np.arange(len(full_traj)) * step_ms
+    axs[0].plot(t_traj, np.rad2deg(full_traj), lw=1.5, color="#1f77b4")
     axs[0].set_ylabel("planner (deg)")
     axs[0].grid(True, linestyle="--", alpha=0.3)
 
@@ -261,7 +263,9 @@ def main():
     else:
         config = MotorControllerConfig()
 
-    artifacts_dir = args.output_dir / args.run_name if args.run_name else args.output_dir
+    artifacts_dir = (
+        args.output_dir / args.run_name if args.run_name else args.output_dir
+    )
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     network = get_m1_or_train(
