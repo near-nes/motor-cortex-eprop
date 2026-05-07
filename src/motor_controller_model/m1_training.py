@@ -11,6 +11,7 @@ import numpy as np
 import structlog
 
 from .config_schema import MotorControllerConfig, TrainingTimings
+from .convergence import TrainingDidNotConverge, check_firing_rate
 from .m1_network import M1Network, get_weights
 from .plot_results import (
     plot_spikes_and_dynamics,
@@ -426,5 +427,28 @@ def train_m1(
             artifacts_dir / "weight_matrices.png",
             n_exc=n_exc,
         )
+
+    if config.convergence.enabled:
+        result = check_firing_rate(float(mean_firing_rate_hz), config.convergence)
+        if not result.ok:
+            failure_path = artifacts_dir / "convergence_failure.json"
+            with open(failure_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "reason": result.reason,
+                        "detail": result.detail,
+                        "mean_firing_rate_hz": result.mean_firing_rate_hz,
+                        "min_firing_rate_hz": config.convergence.min_firing_rate_hz,
+                        "max_firing_rate_hz": config.convergence.max_firing_rate_hz,
+                    },
+                    f,
+                    indent=2,
+                )
+            _log.error(
+                "training did not converge",
+                reason=result.reason,
+                detail=result.detail,
+            )
+            raise TrainingDidNotConverge(result.detail)
 
     return network

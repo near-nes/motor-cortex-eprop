@@ -8,6 +8,7 @@ from pathlib import Path
 import structlog
 
 from .config_schema import MotorControllerConfig
+from .convergence import TrainingDidNotConverge
 from .m1_network import M1Network
 from .m1_training import train_m1
 
@@ -134,6 +135,15 @@ def get_m1_or_train(
         return network
 
     _log.info("training M1 model", artifacts_dir=str(artifacts_dir))
-    network = train_m1(config, artifacts_dir, nest_module=nest_module)
+    try:
+        network = train_m1(config, artifacts_dir, nest_module=nest_module)
+    except TrainingDidNotConverge:
+        # Persist the config under a non-cacheable name so the run is visible
+        # but won't be picked up as a valid trained model on the next call.
+        config.to_yaml(artifacts_dir / "config.failed.yaml")
+        stale_config = artifacts_dir / "config.yaml"
+        if stale_config.exists():
+            stale_config.unlink()
+        raise
     config.to_yaml(artifacts_dir / "config.yaml")
     return network

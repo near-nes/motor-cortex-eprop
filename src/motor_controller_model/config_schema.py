@@ -427,6 +427,22 @@ class PlottingConfig(BaseModel):
     do_plotting: bool = Field(default=True, description="Enable or disable plotting")
 
 
+class ConvergenceConfig(BaseModel):
+    """Post-training convergence verification."""
+
+    enabled: bool = Field(
+        default=True, description="Run firing-rate convergence check after training"
+    )
+    min_firing_rate_hz: float = Field(
+        default=5.0,
+        description="Below this rate, the recurrent population is considered dead",
+    )
+    max_firing_rate_hz: float = Field(
+        default=50.0,
+        description="Above this rate, the recurrent population is considered diverged",
+    )
+
+
 class MotorControllerConfig(BaseModel):
     """Complete configuration for the motor controller model."""
 
@@ -438,6 +454,7 @@ class MotorControllerConfig(BaseModel):
     synapses: SynapsesConfig = Field(default_factory=SynapsesConfig)
     recording: RecordingConfig = Field(default_factory=RecordingConfig)
     plotting: PlottingConfig = Field(default_factory=PlottingConfig)
+    convergence: ConvergenceConfig = Field(default_factory=ConvergenceConfig)
 
     git_commit: str = Field(
         default="unknown", description="Git commit hash of the training code"
