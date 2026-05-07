@@ -398,6 +398,13 @@ def train_m1(
         _log.debug("generating plots")
 
         plot_training_error(loss, artifacts_dir / "training_error.png")
+        last_10pct_start = max(0, int(np.floor(len(loss) * 0.9)))
+        last_10pct_x = np.arange(last_10pct_start + 1, len(loss) + 1)
+        plot_training_error(
+            loss[last_10pct_start:],
+            artifacts_dir / "training_error_last_10pct.png",
+            x=last_10pct_x,
+        )
         plot_spikes_and_dynamics(
             spike_recorder.get("events"),
             mm_rec.get("events"),

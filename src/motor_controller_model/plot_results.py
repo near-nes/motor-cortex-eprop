@@ -185,6 +185,7 @@ def plot_training_error(loss, out_path, x=None, xlabel="training iteration"):
         loss = loss[:minlen]
     fig, ax = plt.subplots(figsize=(4, 3))  # Changed figure size here
     ax.plot(x, loss)
+    ax.set_yscale("log", nonpositive="clip")
     ax.set_ylabel(r"$E = \frac{1}{2} \sum_{t,k} (y_k^t -y_k^{*,t})^2$")
     ax.set_xlabel(xlabel)
 
