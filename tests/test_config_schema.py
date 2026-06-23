@@ -106,6 +106,8 @@ def test_recurrent_to_nest_params_includes_adapt_only_when_requested():
 
     assert "adapt_beta" not in regular_params
     assert "adapt_tau" not in regular_params
+    assert "V_m" not in regular_params
+    assert "V_m" not in adaptive_params
     assert adaptive_params["adapt_beta"] == 1.7
     assert adaptive_params["adapt_tau"] == 33.0
     assert "kappa" in adaptive_params
@@ -128,5 +130,4 @@ def test_readout_synapse_optimizer_can_be_configured_independently():
     assert cfg.synapses.readout.optimizer.eta == 0.2
     assert cfg.synapses.exc.optimizer.Wmax == 1.0
     assert cfg.synapses.readout.optimizer.Wmax == 2.0
-
 

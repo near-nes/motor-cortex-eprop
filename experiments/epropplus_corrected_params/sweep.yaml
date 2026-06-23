@@ -1,0 +1,36 @@
+sweep_name: epropplus_corrected_params
+base_config: config.yaml
+output_dir: /home/shimoura/Github/motor-cortex-eprop/results/sweeps/
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+fixed_overrides:
+  task.n_iter: 100
+
+# axes:
+#   rbf.buffer_size:
+#     - 10.0
+#     - 30.0
+#     - 50.0
+#   rbf.num_centers:
+#     - 15
+#     - 20
+#     - 25
+#     - 30
+#   neurons.out.tau_m:
+#     - 20.0
+#     - 40.0
+#   neurons.n_rec:
+#     - 200
+#     - 400
+#     - 500
+#   rbf.sdev_hz:
+#     - 1200.0
+#     - 1800.0
+#     - 2400.0
+#     - 3000.0
+#   neurons.rec.c_reg:
+#     - 0.0
+#     - 10.0
+#     - 25.0
+#     - 50.0
