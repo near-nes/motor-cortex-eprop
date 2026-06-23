@@ -85,6 +85,10 @@ synapses:
       optimize_each_step: false
     plastic: true
     weight: -1.0
+  rec_out:
+    weight: 0.01
+  out_rec:
+    weight: 1.0
 recording:
   n_record: 2
   n_record_w: 5

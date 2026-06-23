@@ -114,20 +114,18 @@ def test_recurrent_to_nest_params_includes_adapt_only_when_requested():
     assert "kappa_reg" in adaptive_params
 
 
-def test_readout_synapse_optimizer_can_be_configured_independently():
+def test_directional_synapse_weights_can_be_configured_independently():
     cfg = MotorControllerConfig.model_validate(
         {
             "synapses": {
                 "exc": {"optimizer": {"eta": 0.01, "Wmin": 0.0, "Wmax": 1.0}},
-                "readout": {
-                    "optimizer": {"eta": 0.2, "Wmin": 0.0, "Wmax": 2.0}
-                },
+                "rec_out": {"weight": 3.0},
+                "out_rec": {"weight": 5.0},
             }
         }
     )
 
     assert cfg.synapses.exc.optimizer.eta == 0.01
-    assert cfg.synapses.readout.optimizer.eta == 0.2
     assert cfg.synapses.exc.optimizer.Wmax == 1.0
-    assert cfg.synapses.readout.optimizer.Wmax == 2.0
-
+    assert cfg.synapses.rec_out.weight == 3.0
+    assert cfg.synapses.out_rec.weight == 5.0

@@ -280,6 +280,8 @@ class M1Network:
 
         w_input = syn_cfg.w_input
         w_rec = syn_cfg.w_rec
+        w_rec_out = syn_cfg.rec_out.weight
+        w_out_rec = syn_cfg.out_rec.weight
         g = syn_cfg.g
 
         # RB -> Rec
@@ -324,6 +326,15 @@ class M1Network:
                 max=optimizer_inh.Wmax,
             ),
         }
+        params_syn_rec_out = {
+            "synapse_model": "eprop_synapse_m1_exc",
+            "delay": step_ms,
+            "weight": nest.math.redraw(
+                nest.random.normal(mean=w_rec_out, std=abs(w_rec_out) * 0.1),
+                min=optimizer_exc.Wmin,
+                max=optimizer_exc.Wmax,
+            ),
+        }
 
         # Rec_exc -> Rec, Rec_inh -> Rec
         if len(nrns_rec_exc):
@@ -344,7 +355,7 @@ class M1Network:
         # Readout projection from excitatory recurrent neurons.
         nrns_out = self.nrns_out_p + self.nrns_out_n
         if len(nrns_rec_exc):
-            nest.Connect(nrns_rec_exc, nrns_out, "all_to_all", params_syn_rec_exc)
+            nest.Connect(nrns_rec_exc, nrns_out, "all_to_all", params_syn_rec_out)
 
         # Learning-signal feedback to recurrent neurons.
         nest.Connect(
@@ -355,7 +366,7 @@ class M1Network:
                 "synapse_model": "eprop_learning_signal_connection",
                 "delay": syn_cfg.feedback_delay,
                 "weight": nest.math.redraw(
-                    nest.random.normal(mean=w_rec, std=w_rec * 0.1),
+                    nest.random.normal(mean=w_out_rec, std=abs(w_out_rec) * 0.1),
                     min=optimizer_exc.Wmin,
                     max=optimizer_exc.Wmax,
                 ),

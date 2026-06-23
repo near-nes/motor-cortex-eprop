@@ -364,6 +364,14 @@ class InhSynapseConfig(BaseModel):
     )
 
 
+class DirectionalSynapseWeightConfig(BaseModel):
+    """Directional initial synapse weight."""
+
+    weight: float = Field(
+        default=4.0, description="Initial synaptic weight for this projection (pA)"
+    )
+
+
 class SynapsesConfig(BaseModel):
     """Synapse parameters."""
 
@@ -387,6 +395,12 @@ class SynapsesConfig(BaseModel):
     )
     exc: ExcSynapseConfig = Field(default_factory=ExcSynapseConfig)
     inh: InhSynapseConfig = Field(default_factory=InhSynapseConfig)
+    rec_out: DirectionalSynapseWeightConfig = Field(
+        default_factory=DirectionalSynapseWeightConfig
+    )
+    out_rec: DirectionalSynapseWeightConfig = Field(
+        default_factory=DirectionalSynapseWeightConfig
+    )
 
 
 class MultimeterRecConfig(BaseModel):
