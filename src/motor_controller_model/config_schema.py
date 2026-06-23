@@ -265,10 +265,12 @@ class RecurrentNeuronConfig(RecurrentNeuronAdaptive):
         Produce a NEST-friendly parameter dictionary.
 
         - Converts `eligibility_tau_ms` and `tau_reg_ms` into `kappa` factors.
+        - Excludes `V_m`; recurrent membrane state is initialized explicitly in
+          `M1Network.build_network`.
         - When `include_adapt` is False, adaptation keys are removed so the
           resulting dict can be safely passed to non-adaptive neuron models.
         """
-        params = self.model_dump(exclude={"eligibility_tau_ms", "tau_reg_ms"})
+        params = self.model_dump(exclude={"eligibility_tau_ms", "tau_reg_ms", "V_m"})
         params["kappa"] = float(math.exp(-step_ms / self.eligibility_tau_ms))
         params["kappa_reg"] = float(math.exp(-step_ms / self.tau_reg_ms))
         if not include_adapt:

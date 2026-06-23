@@ -190,12 +190,15 @@ class M1Network:
         for part in recurrent_parts[1:]:
             self.nrns_rec += part
         # Set initial states of recurrent neurons to random values to break symmetry.
-        v_m_init = np.random.uniform(
-            self.config.neurons.rec.E_L,
-            self.config.neurons.rec.V_th,
-            len(self.nrns_rec),
+        nest.SetStatus(
+            self.nrns_rec,
+            {
+                "V_m": nest.random.normal(
+                    mean=self.config.neurons.rec.E_L, 
+                    std=abs(self.config.neurons.rec.E_L * 0.1)
+                ),
+            }
         )
-        nest.SetStatus(self.nrns_rec, "V_m", v_m_init)
 
         if train:
             out_params = {
