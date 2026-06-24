@@ -1,7 +1,7 @@
 simulation:
   rng_seed: 1234
   print_time: false
-  total_num_virtual_procs: 4
+  total_num_virtual_procs: 16
   step: 1.0
 task:
   gradient_batch_size: 1
