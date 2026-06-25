@@ -18,7 +18,6 @@
 #SBATCH --output=report/slurm/m1_sweep_%A_%a.out
 #SBATCH --error=report/slurm/m1_sweep_%A_%a.err
 #SBATCH --cpus-per-task=24
-#SBATCH --partition=blaustein
 #SBATCH --mem=32G
 
 set -euo pipefail

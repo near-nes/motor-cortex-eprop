@@ -3,33 +3,24 @@ base_config: update_eprop_neuron_model_exc_adapt.yaml
 output_dir: /projects/eprop_motor_net/default_eprop_model/sweeps
 nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
 force_retrain: true
+
+fixed_overrides:
+  rbf.buffer_size: 30.0
+  rbf.num_centers: 15
+  neurons.out.tau_m: 20.0
+  neurons.n_rec: 400
+  rbf.sdev_hz: 2400.0
+  neurons.rec.c_reg: 25.0
+
+  synapses.exc.optimizer.eta: 1e-5
+  synapses.inh.optimizer.eta: 1e-5
 axes:
-  rbf.buffer_size:
-    - 10.0
-    - 30.0
-    - 50.0
-  rbf.num_centers:
-    - 15
-    - 20
-    - 25
-    - 30
-  neurons.out.tau_m:
-    - 20.0
-    - 40.0
-  neurons.n_rec:
-    - 200
-    - 400
-    - 500
-  rbf.sdev_hz:
-    - 1200.0
-    - 1800.0
-    - 2400.0
-    - 3000.0
-  neurons.rec.c_reg:
+  neurons.exc_adapt_ratio:
     - 0.0
-    - 10.0
-    - 25.0
-    - 50.0
+    - 0.25
+    - 0.5
+    - 0.75
+    - 1.0
 
 # This sweep mirrors sweep_dynamics; the adaptive-excitatory fraction is fixed
 # in the base config at 25%.
