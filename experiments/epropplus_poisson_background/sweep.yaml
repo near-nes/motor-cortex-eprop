@@ -1,0 +1,41 @@
+sweep_name: epropplus_poisson_background
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/epropplus_poisson_background/sweeps
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+fixed_overrides:
+  neurons.n_rec: 300
+  task.n_iter: 250
+axes:
+  # synapses.w_input:
+  #   - 0.1
+  #   - 0.25
+  #   - 0.5
+  #   - 0.75
+  #   - 1.0
+  # synapses.w_rec:
+  #   - 2.0
+  #   - 3.0
+  #   - 4.0
+  # synapses.rec_out.weight:
+  #   - 0.5
+  #   - 1.0
+  #   - 1.5
+  # synapses.out_rec.weight:
+  #   - 1.0
+  #   - 2.0
+  #   - 3.0
+  #   - 4.0
+  #   - 5.0
+  simulation.rng_seed:
+    - 1234
+    - 5678
+    - 9012
+    - 3456
+    - 7890
+    - 1
+    - 2
+    - 3
+    - 12
+    - 42
