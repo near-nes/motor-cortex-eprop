@@ -24,19 +24,19 @@ training:
   time_move_ms: 500.0
   time_post_ms: 350.0
 rbf:
-  num_centers: 20
+  num_centers: 25
   desired_min_rate: 0.0
   desired_max_rate: 60000.0
   kp: 1000.0
   base_rate: 0.0
   buffer_size: 10.0
-  sdev_hz: 3600.0
-  max_peak_rate_hz: 800.0
+  sdev_hz: 1500.0
+  max_peak_rate_hz: 1000.0
 neurons:
   n_rec: 300
   n_out: 2
   exc_ratio: 0.8
-  exc_adapt_ratio: 0.0
+  exc_adapt_ratio: 0.25
   rec:
     C_m: 250.0
     E_L: -70.0
@@ -45,15 +45,15 @@ neurons:
     tau_m: 20.0
     V_m: 0.0
     V_th: -50.0
-    c_reg: 0.2 # updated: 300.0 / sequence duration
+    c_reg: 300.0
     f_target: 10.0
     beta: 1.0
     gamma: 0.3
     eligibility_tau_ms: 20.0
     tau_reg_ms: 20.0
-    surrogate_gradient_function: piecewise_linear
+    surrogate_gradient_function: exponential
     adapt_beta: 1.0
-    adapt_tau: 10.0
+    adapt_tau: 100.0
   out:
     C_m: 250.0
     E_L: -70.0
@@ -61,8 +61,8 @@ neurons:
     tau_m: 20.0
     V_m: 0.0
 synapses:
-  w_input: 1.0  # updated: 20 * 0.0488 (old weight * scale_factor)
-  w_rec: 1.0    # updated: 20 * 0.0488 (old weight * scale_factor)
+  w_input: 1.0
+  w_rec: 4.0
   g: 4.0
   conn_bernoulli_p: 0.1
   static_delay: 1.0
@@ -72,23 +72,28 @@ synapses:
   exc:
     optimizer:
       type: gradient_descent
-      eta: 2.4e-05  # updated: 0.01 * 0.0488^2 (old eta * scale_factor^2)
+      eta: 1.0e-05
       Wmin: 0.0
       Wmax: 1000.0
       optimize_each_step: false
   inh:
     optimizer:
       type: gradient_descent
-      eta: 2.4e-05  # updated: 0.01 * 0.0488^2 (old eta * scale_factor^2)
+      eta: 1.0e-05
       Wmin: -1000.0
       Wmax: 0.0
       optimize_each_step: false
     plastic: true
     weight: -1.0
   rec_out:
-    weight: 0.01
+    weight: 1.0
   out_rec:
     weight: 1.0
+background:
+  enabled: false
+  rate_hz: 1000.0
+  weight: 0.5
+  delay: 1.0
 recording:
   n_record: 2
   n_record_w: 5

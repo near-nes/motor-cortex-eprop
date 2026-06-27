@@ -6,6 +6,7 @@
 #SBATCH --mem=1G
 #SBATCH --output=report/m1_sweep_%A_%a.out
 #SBATCH --error=report/m1_sweep_%A_%a.err
+#SBATCH --partition=blaustein
 
 set -euo pipefail
 
@@ -16,11 +17,9 @@ SPEC_PATH="${SPEC_PATH:-$DEFAULT_SPEC_PATH}"
 
 REPORT_DIR="${REPO_ROOT}/report/slurm"
 MAX_ARRAY_TASKS=1000
-WORKER_MEM=32G
+WORKER_MEM=16G
 
 mkdir -p "$REPORT_DIR"
-
-source "$REPO_ROOT/env_load_hambach.sh"
 
 # ----------------------------------------------------------------------
 # Helpers
