@@ -129,3 +129,30 @@ def test_directional_synapse_weights_can_be_configured_independently():
     assert cfg.synapses.exc.optimizer.Wmax == 1.0
     assert cfg.synapses.rec_out.weight == 3.0
     assert cfg.synapses.out_rec.weight == 5.0
+
+
+def test_background_poisson_defaults_and_override():
+    default_cfg = MotorControllerConfig()
+    assert default_cfg.background.enabled is False
+    assert default_cfg.background.rate_hz == 0.0
+
+    overridden_cfg = MotorControllerConfig.model_validate(
+        {
+            "background": {
+                "enabled": True,
+                "rate_hz": 15.0,
+                "weight": 0.5,
+                "delay": 2.0,
+                "start_ms": 10.0,
+                "stop_ms": 100.0,
+            }
+        }
+    )
+
+    poisson_cfg = overridden_cfg.synapses.background
+    assert poisson_cfg.enabled is True
+    assert poisson_cfg.rate_hz == 15.0
+    assert poisson_cfg.weight == 0.5
+    assert poisson_cfg.delay == 2.0
+    assert poisson_cfg.start_ms == 10.0
+    assert poisson_cfg.stop_ms == 100.0

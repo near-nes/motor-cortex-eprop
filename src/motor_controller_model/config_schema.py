@@ -303,8 +303,7 @@ class NeuronsConfig(BaseModel):
         ge=0.0,
         le=1.0,
         description=(
-            "Fraction of excitatory neurons that should use the eprop_iaf_adapt "
-            "model"
+            "Fraction of excitatory neurons that should use the eprop_iaf_adapt model"
         ),
     )
     rec: RecurrentNeuronConfig = Field(default_factory=RecurrentNeuronConfig)
@@ -369,6 +368,39 @@ class DirectionalSynapseWeightConfig(BaseModel):
 
     weight: float = Field(
         default=4.0, description="Initial synaptic weight for this projection (pA)"
+    )
+
+
+class BackgroundPoissonConfig(BaseModel):
+    """Background Poisson drive into the recurrent population."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable background Poisson drive to recurrent neurons.",
+    )
+    rate_hz: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Poisson generator rate in Hz.",
+    )
+    weight: float = Field(
+        default=1.0,
+        description="Static synaptic weight.",
+    )
+    delay: float = Field(
+        default=1.0,
+        gt=0.0,
+        description="Static synaptic delay (ms).",
+    )
+    start_ms: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Start time (ms).",
+    )
+    stop_ms: float | None = Field(
+        default=None,
+        gt=0.0,
+        description="Stop time (ms). Defaults to the simulation duration.",
     )
 
 
@@ -471,6 +503,7 @@ class MotorControllerConfig(BaseModel):
     recording: RecordingConfig = Field(default_factory=RecordingConfig)
     plotting: PlottingConfig = Field(default_factory=PlottingConfig)
     convergence: ConvergenceConfig = Field(default_factory=ConvergenceConfig)
+    background: BackgroundPoissonConfig = Field(default_factory=BackgroundPoissonConfig)
 
     git_commit: str = Field(
         default="unknown", description="Git commit hash of the training code"

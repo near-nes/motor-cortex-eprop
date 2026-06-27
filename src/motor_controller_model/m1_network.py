@@ -194,10 +194,10 @@ class M1Network:
             self.nrns_rec,
             {
                 "V_m": nest.random.normal(
-                    mean=self.config.neurons.rec.E_L, 
-                    std=abs(self.config.neurons.rec.E_L * 0.1)
+                    mean=self.config.neurons.rec.E_L,
+                    std=abs(self.config.neurons.rec.E_L * 0.1),
                 ),
-            }
+            },
         )
 
         if train:

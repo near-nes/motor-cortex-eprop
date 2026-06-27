@@ -15,6 +15,7 @@ from .m1_factory import get_m1_or_train
 from .m1_network import M1Network
 from .signals import generate_training_signals
 from .utils import install_nestml_module
+from .background import connect_background_poisson
 
 _log = structlog.get_logger("m1_train")
 
@@ -48,6 +49,11 @@ def run_inference_test(
     sim_time_ms = n_steps_per_seq * n_trajectories * step_ms
 
     network.build_network(simulation_time_ms=sim_time_ms)
+    connect_background_poisson(
+        target_population=network.nrns_rec,
+        simulation_time_ms=sim_time_ms,
+        config=config,
+    )
 
     # Build planner trajectory from configured training trajectories.
     all_signals = [

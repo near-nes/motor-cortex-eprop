@@ -20,6 +20,7 @@ from .plot_results import (
 )
 from .signals import TrainingSignals, generate_training_signals
 from .utils import install_nestml_module
+from .background import connect_background_poisson
 
 _log = structlog.get_logger("m1_train")
 
@@ -310,6 +311,13 @@ def train_m1(
     # Build network in training mode
     network = M1Network(config)
     network.build_network(simulation_time_ms=timings.task_ms, train=True)
+
+    # Connect background Poisson drive to recurrent neurons
+    connect_background_poisson(
+        target_population=network.nrns_rec,
+        simulation_time_ms=timings.task_ms,
+        config=config,
+    )
 
     # Wire up training-specific NEST objects
     _create_planner_neurons(network, all_signals, timings, config)
