@@ -11,7 +11,7 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/epropplus_poisson_background/sweep.yaml"
+DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/epropplus_input_variability/sweep.yaml"
 SPEC_PATH="${SPEC_PATH:-$DEFAULT_SPEC_PATH}"
 
 REPORT_DIR="${REPO_ROOT}/report/slurm"

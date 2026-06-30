@@ -2,11 +2,11 @@
 # Local sweep runner (no SLURM).
 #
 # Usage:
-# bash experiments/update_eprop_neuron_model_test/run_sweep_local.sh [--parallel N] [--spec SPEC_PATH]
+# bash experiments/epropplus_input_variability/run_sweep_local.sh [--parallel N] [--spec SPEC_PATH]
 #
 # Examples:
-# bash experiments/update_eprop_neuron_model_test/run_sweep_local.sh --parallel 2
-# bash experiments/update_eprop_neuron_model_test/run_sweep_local.sh --parallel 3 --spec update_eprop_neuron_model_sweep.yaml
+# bash experiments/epropplus_input_variability/run_sweep_local.sh --parallel 2
+# bash experiments/epropplus_input_variability/run_sweep_local.sh --parallel 3 --spec update_eprop_neuron_model_sweep.yaml
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 
-DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/update_eprop_neuron_model_test/sweep_dynamics.yaml"
+DEFAULT_SPEC_PATH="${REPO_ROOT}/experiments/epropplus_input_variability/sweep.yaml"
 SPEC_PATH="$DEFAULT_SPEC_PATH"
 PARALLEL_JOBS=4  # Conservative default for 16 cores, 20GB RAM
 
@@ -144,18 +144,18 @@ echo "Starting local sweep: $RUNS runs with max concurrency $PARALLEL_JOBS (cpus
 echo "Sweep root: $SWEEP_ROOT"
 echo ""
 
-# Run tasks with controlled parallelism using GNU parallel or xargs
-if command -v parallel &> /dev/null; then
-  # Use GNU parallel if available
-  seq 0 $((RUNS - 1)) | parallel --halt soon,fail=1 -j "$PARALLEL_JOBS" \
-    "python -m motor_controller_model.sweep --spec '$SPEC_PATH' --sweep-root '$SWEEP_ROOT' --task-index {}"
-else
-  # Fallback: use xargs for simpler parallelism
-  seq 0 $((RUNS - 1)) | xargs -P "$PARALLEL_JOBS" -I {} \
-    python -m motor_controller_model.sweep --spec "$SPEC_PATH" --sweep-root "$SWEEP_ROOT" --task-index {}
-fi
+run_tasks() {
+  # Run tasks with controlled parallelism using GNU parallel or xargs.
+  if command -v parallel &> /dev/null; then
+    seq 0 $((RUNS - 1)) | parallel --halt soon,fail=1 -j "$PARALLEL_JOBS" \
+      "python -m motor_controller_model.sweep --spec '$SPEC_PATH' --sweep-root '$SWEEP_ROOT' --task-index {}"
+  else
+    seq 0 $((RUNS - 1)) | xargs -P "$PARALLEL_JOBS" -I {} \
+      python -m motor_controller_model.sweep --spec "$SPEC_PATH" --sweep-root "$SWEEP_ROOT" --task-index {}
+  fi
+}
 
-if [[ $? -eq 0 ]]; then
+if run_tasks; then
   echo ""
   echo "========== Sweep completed successfully =========="
   run_analysis "$SWEEP_ROOT"
