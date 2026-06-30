@@ -21,6 +21,7 @@ from .plot_results import (
 from .signals import TrainingSignals, generate_training_signals
 from .utils import install_nestml_module
 from .background import connect_background_poisson
+from .training_outputs import TrainingOutputs
 
 _log = structlog.get_logger("m1_train")
 
@@ -291,7 +292,8 @@ def train_m1(
     config: MotorControllerConfig,
     artifacts_dir: Path,
     nest_module: str = None,
-) -> M1Network:
+    return_outputs: bool = False,
+) -> M1Network | tuple[M1Network, TrainingOutputs]:
     """Train the M1 network using e-prop and return the trained M1Network.
 
     Training data is fully specified via ``config.training`` — no external
@@ -458,5 +460,12 @@ def train_m1(
                 detail=result.detail,
             )
             raise TrainingDidNotConverge(result.detail)
+
+    if return_outputs:
+        return network, TrainingOutputs(
+            loss=loss,
+            recurrent_events=events_rec,
+            output_events=events_mm_out,
+        )
 
     return network
