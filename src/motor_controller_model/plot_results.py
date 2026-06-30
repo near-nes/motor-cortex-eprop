@@ -207,6 +207,7 @@ def plot_spikes_and_dynamics(
     input_signals: List[TrainingSignals] | None = None,
     events_sr_rb=None,
     nrns_rb=None,
+    n_sequences: int = 1,
 ):
     """Plot spikes and dynamics for a training run (pre- vs post-training).
 
@@ -259,29 +260,45 @@ def plot_spikes_and_dynamics(
         ax.set_ylabel(ylabel)
         ax.grid(True, linestyle="--", alpha=0.3)
 
-    def plot_trajectory(ax, signals, timings, xlims):
-        """Plot the planner input trajectory (rad) for one iteration window."""
-        step_ms = timings.step_ms
-        # Build a single-iteration trajectory by concatenating all trajectory signals
-        one_iter = np.concatenate([sig.input_trajectory for sig in signals])
-        t = np.arange(len(one_iter)) * step_ms
-        # Offset to match the window
-        t = t + xlims[0]
-        ax.plot(t, np.rad2deg(one_iter), lw=1.5, color="#1f77b4")
+    def plot_trajectory(ax, signals, timings, xlims, n_sequences=1):
+        """Plot the planner input trajectory for one sequence."""
+
+        # Which sequence does this plotting window start at?
+        start_seq = int(round(xlims[0] / timings.sequence_ms))
+
+        # Plot n_sequences consecutive sequences
+        end_seq = min(start_seq + n_sequences, len(signals))
+
+        traj = np.concatenate(
+            [sig.input_trajectory for sig in signals[start_seq:end_seq]]
+        )
+
+        t = np.arange(len(traj)) * timings.step_ms + xlims[0]
+
+        ax.plot(t, np.rad2deg(traj), lw=1.5, color="#1f77b4")
         ax.set_ylabel("planner (deg)")
         ax.grid(True, linestyle="--", alpha=0.3)
 
     # Pre/post windows: first and last iteration
-    one_iter_ms = timings.n_samples * timings.sequence_ms
-    pre_train_window = (0, one_iter_ms)
-    post_train_window = (timings.task_ms - one_iter_ms, timings.task_ms)
-    xlims_list = [pre_train_window, post_train_window]
+    window_ms = n_sequences * timings.sequence_ms
+    xlims_list = [
+        (0, window_ms),
+        (timings.task_ms - window_ms, timings.task_ms),
+    ]
 
     has_traj = input_signals is not None
     has_rb = events_sr_rb is not None and nrns_rb is not None
     n_extra = int(has_traj) + int(has_rb)
     n_rows = 8 + n_extra
-    fig, axs = plt.subplots(n_rows, 2, sharex="col", figsize=(6, n_rows * 1.5), dpi=300)
+    width = min(6 * n_sequences, 18)
+
+    fig, axs = plt.subplots(
+        n_rows,
+        2,
+        sharex="col",
+        figsize=(width, n_rows * 1.5),
+        dpi=300,
+    )
 
     rec_colors = ["#1f77b4", "#d62728", "#2ca02c", "#ff7f0e"]
     out_colors = ["#1f77b4", "#d62728", "#e377c2"]
@@ -289,7 +306,13 @@ def plot_spikes_and_dynamics(
     for col, xlims in enumerate(xlims_list):
         row = 0
         if has_traj:
-            plot_trajectory(axs[row, col], input_signals, timings, xlims)
+            plot_trajectory(
+                axs[row, col],
+                input_signals,
+                timings,
+                xlims,
+                n_sequences=n_sequences,
+            )
             row += 1
         if has_rb:
             plot_spikes(axs[row, col], events_sr_rb, nrns_rb, r"$z_{rb}$", xlims)
@@ -685,7 +708,7 @@ def tutorial_plot_trajectories_and_targets(
                     label="neg",
                 )
             ax.set_ylabel("Neuron ID")
-            ax.set_title(f"Input Spikes: Planner (Trajectory {traj_idx+1})")
+            ax.set_title(f"Input Spikes: Planner (Trajectory {traj_idx + 1})")
             ax.set_xlim(0, sequence_duration)
             ax.grid(True, linestyle="--", alpha=0.3)
             if traj_idx == n_trajectories - 1:
@@ -720,7 +743,7 @@ def tutorial_plot_trajectories_and_targets(
                 )
             ax.set_xlabel("Time (ms)")
             ax.set_ylabel("Target Signal (smoothed spike count)")
-            ax.set_title(f"Target Signal: M1 (Trajectory {traj_idx+1})")
+            ax.set_title(f"Target Signal: M1 (Trajectory {traj_idx + 1})")
             ax.set_xlim(0, sequence_duration)
             ax.grid(True, linestyle="--", alpha=0.3)
             ax.legend()
@@ -749,7 +772,7 @@ def tutorial_plot_trajectories_and_targets(
                     load_spike_data(target_files_neg) if target_files_neg else None
                 )
 
-            print(f"\nTrajectory {traj_idx+1} statistics:")
+            print(f"\nTrajectory {traj_idx + 1} statistics:")
             print(
                 f"  Input spikes (planner pos): {len(input_spikes_pos)} spikes from {len(np.unique(input_spikes_pos[:, 0]))} neurons"
             )
@@ -788,7 +811,7 @@ def tutorial_plot_trajectories_and_targets(
             trajectory = all_trajectories[i]
             time_traj = np.linspace(0, duration_ms, len(trajectory))
             axs[0, i].plot(time_traj, trajectory, color="tab:blue")
-            axs[0, i].set_title(f"Trajectory {i+1}")
+            axs[0, i].set_title(f"Trajectory {i + 1}")
             axs[0, i].set_ylim(global_min, global_max)
             axs[0, i].grid(True, linestyle="--", alpha=0.3)
             axs[0, i].set_xlabel("Time (ms)")
@@ -815,7 +838,7 @@ def tutorial_plot_trajectories_and_targets(
             neg_hist = np.convolve(neg_hist, np.ones(20) / 10, mode="same")
             axs[1, i].plot(bin_edges[:-1], pos_hist, color="tab:blue", label="pos")
             axs[1, i].plot(bin_edges[:-1], neg_hist, color="tab:red", label="neg")
-            axs[1, i].set_title(f"Target Signal {i+1}")
+            axs[1, i].set_title(f"Target Signal {i + 1}")
             axs[1, i].set_xlabel("Time (ms)")
             if i == 0:
                 axs[1, i].set_ylabel("Target Spike Rate")

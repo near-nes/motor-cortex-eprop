@@ -50,6 +50,19 @@ class TrajectorySpec(BaseModel):
     target_angle_deg: float
 
 
+class TrainingSamplingConfig(BaseModel):
+    """Training trajectory sampling."""
+
+    strategy: Literal[
+        "sequential",
+        "uniform",
+        "shuffled_epochs",
+    ] = Field(
+        default="shuffled_epochs",
+        description="Strategy used to sample trajectories during training.",
+    )
+
+
 class TrainingSignalConfig(BaseModel):
     """Parameters for end-to-end training signal generation."""
 
@@ -59,6 +72,7 @@ class TrainingSignalConfig(BaseModel):
             TrajectorySpec(init_angle_deg=90, target_angle_deg=20),
         ]
     )
+    sampling: TrainingSamplingConfig = Field(default_factory=TrainingSamplingConfig)
     n_input_neurons: int = Field(
         default=200, description="Neurons per channel (pos/neg) for planner input"
     )
@@ -92,17 +106,18 @@ class TrainingSignalConfig(BaseModel):
 
 
 class TrainingTimings(BaseModel):
-    """Computed timing parameters for a training run.
+    """Computed timing parameters for one training run.
 
-    Derived from TaskConfig + TrainingSignalConfig + SimulationConfig.
+    One training iteration corresponds to the presentation of one complete
+    trajectory sequence.
     """
 
     step_ms: float
     sequence_ms: float
     input_shift_ms: float
     learning_window: float
+    pool_size: int
     n_samples: int
-    n_iter: int
 
     @classmethod
     def from_config(cls, config: "MotorControllerConfig") -> "TrainingTimings":
@@ -123,8 +138,8 @@ class TrainingTimings(BaseModel):
             sequence_ms=sequence_ms,
             input_shift_ms=task.input_shift_ms,
             learning_window=learning_window,
-            n_samples=len(training.trajectories),
-            n_iter=task.n_iter,
+            pool_size=len(training.trajectories),
+            n_samples=task.n_iter,
         )
 
     @property
@@ -133,9 +148,7 @@ class TrainingTimings(BaseModel):
 
     @property
     def task_ms(self) -> float:
-        return (
-            self.n_timesteps_per_sequence * self.n_samples * self.n_iter * self.step_ms
-        )
+        return self.n_timesteps_per_sequence * self.n_samples * self.step_ms
 
 
 class RBFConfig(BaseModel):
@@ -470,8 +483,16 @@ class RecordingConfig(BaseModel):
 class PlottingConfig(BaseModel):
     """Plotting parameters."""
 
-    do_plotting: bool = Field(default=True, description="Enable or disable plotting")
+    do_plotting: bool = Field(
+        default=True,
+        description="Enable or disable plotting",
+    )
 
+    spikes_plot_n_sequences: int = Field(
+        default=1,
+        ge=1,
+        description="Number of consecutive sequences shown in the spikes-and-dynamics plots.",
+    )
 
 class ConvergenceConfig(BaseModel):
     """Post-training convergence verification."""

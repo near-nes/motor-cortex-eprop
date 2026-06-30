@@ -43,7 +43,8 @@ def run_inference_test(
     training_cfg = config.training
     step_ms = timings.step_ms
     n_repeats = 2
-    n_trajectories = timings.n_samples * n_repeats
+    pool_size = len(training_cfg.trajectories)
+    n_trajectories = pool_size * n_repeats
     # Run one configured sequence per trajectory.
     n_steps_per_seq = timings.n_timesteps_per_sequence
     sim_time_ms = n_steps_per_seq * n_trajectories * step_ms

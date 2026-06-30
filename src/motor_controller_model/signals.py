@@ -35,6 +35,57 @@ class TrainingSignals:
     target_rates_neg: np.ndarray
 
 
+def sample_trajectory_indices(
+    n_pool: int,
+    n_iter: int,
+    strategy: str,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """
+    Sample trajectory indices from a pool of training trajectories.
+
+    Parameters
+    ----------
+    n_pool : int
+        Number of available trajectories in the pool.
+    n_iter : int
+        Number of training iterations (one trajectory is presented per iteration).
+    strategy : str
+        Sampling strategy. One of:
+        - "sequential": repeat the pool in order until enough samples are drawn.
+        - "uniform": sample uniformly at random with replacement.
+        - "shuffled_epochs": sample the pool in random order, repeating until enough samples are drawn.
+    rng : np.random.Generator
+        Random number generator for reproducibility.
+
+    Returns
+    -------
+    np.ndarray
+        Array of sampled trajectory indices of length `n_iter`.
+    """
+
+    if n_pool <= 0:
+        raise ValueError("Trajectory pool must contain at least one trajectory.")
+
+    if n_iter <= 0:
+        raise ValueError("Number of training iterations must be positive.")
+
+    if strategy == "sequential":
+        reps = int(np.ceil(n_iter / n_pool))
+        return np.tile(np.arange(n_pool), reps)[:n_iter]
+
+    if strategy == "uniform":
+        return rng.integers(0, n_pool, size=n_iter)
+
+    if strategy == "shuffled_epochs":
+        indices = []
+        while len(indices) < n_iter:
+            indices.extend(rng.permutation(n_pool))
+        return np.asarray(indices[:n_iter])
+
+    raise ValueError(f"Unknown sampling strategy: {strategy!r}")
+
+
 def generate_training_signals(
     spec: TrajectorySpec,
     cfg: TrainingSignalConfig,

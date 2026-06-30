@@ -18,7 +18,11 @@ from .plot_results import (
     plot_training_error,
     plot_weight_matrices,
 )
-from .signals import TrainingSignals, generate_training_signals
+from .signals import (
+    TrainingSignals,
+    generate_training_signals,
+    sample_trajectory_indices,
+)
 from .utils import install_nestml_module
 from .background import connect_background_poisson
 from .training_outputs import TrainingOutputs
@@ -49,19 +53,32 @@ def setup_nest_kernel(
 def _generate_all_signals(
     config: MotorControllerConfig,
 ) -> List[TrainingSignals]:
-    """Generate input/target signals for every trajectory in the config."""
-    return [
+    """Generate input/target signals for the sampled training iterations."""
+    rng = np.random.default_rng(config.simulation.rng_seed)
+
+    schedule = sample_trajectory_indices(
+        n_pool=len(config.training.trajectories),
+        n_iter=config.task.n_iter,
+        strategy=config.training.sampling.strategy,
+        rng=rng,
+    )
+
+    all_signals = [
         generate_training_signals(
-            spec, config.training, config.simulation.step, config.task.input_shift_ms
+            config.training.trajectories[idx],
+            config.training,
+            config.simulation.step,
+            config.task.input_shift_ms,
         )
-        for spec in config.training.trajectories
+        for idx in schedule
     ]
+
+    return all_signals
 
 
 def _create_planner_neurons(
     network: M1Network,
     all_signals: List[TrainingSignals],
-    timings: TrainingTimings,
     config: MotorControllerConfig,
 ):
     """Create tracking_neuron_nestml populations as planner input.
@@ -73,9 +90,8 @@ def _create_planner_neurons(
     n_input = config.training.n_input_neurons
     tcfg = config.training
 
-    full_traj = np.tile(
-        np.concatenate([sig.input_trajectory for sig in all_signals]),
-        timings.n_iter,
+    full_traj = np.concatenate(
+        [sig.input_trajectory for sig in all_signals]
     )
     sim_steps = len(full_traj)
 
@@ -143,13 +159,12 @@ def _create_target_generators(
     step_ms = timings.step_ms
     syn_cfg = config.synapses
 
-    concat_pos = np.tile(
-        np.concatenate([sig.target_rates_pos for sig in all_signals]),
-        timings.n_iter,
+    concat_pos = np.concatenate(
+        [sig.target_rates_pos for sig in all_signals]
     )
-    concat_neg = np.tile(
-        np.concatenate([sig.target_rates_neg for sig in all_signals]),
-        timings.n_iter,
+
+    concat_neg = np.concatenate(
+        [sig.target_rates_neg for sig in all_signals]
     )
 
     amp_times = np.arange(len(concat_pos)) * step_ms + step_ms
@@ -302,8 +317,9 @@ def train_m1(
     timings = TrainingTimings.from_config(config)
     _log.debug(
         "starting M1 training",
-        n_trajectories=timings.n_samples,
-        n_iter=timings.n_iter,
+        pool_size=timings.pool_size,
+        sampled_sequences=timings.n_samples,
+        sampling=config.training.sampling.strategy,
         sim_ms=timings.task_ms,
     )
 
@@ -322,7 +338,7 @@ def train_m1(
     )
 
     # Wire up training-specific NEST objects
-    _create_planner_neurons(network, all_signals, timings, config)
+    _create_planner_neurons(network, all_signals, config)
     _create_target_generators(network, all_signals, timings, config)
     mm_out, mm_rec, spike_recorder, spike_recorder_rb = _create_recorders(
         network, timings, config
@@ -354,10 +370,8 @@ def train_m1(
     np.save(artifacts_dir / "training_loss.npy", loss)
 
     # Calculate the duration of a single training iteration (all trajectories combined)
-    iter_duration_ms = (
-        timings.n_timesteps_per_sequence * timings.n_samples * timings.step_ms
-    )
-    last_iter_start_ms = timings.task_ms - iter_duration_ms
+    iter_duration_ms = timings.sequence_ms
+    last_iter_start_ms = timings.task_ms - timings.sequence_ms
 
     events_rec = spike_recorder.get("events")
     spike_times = events_rec["times"]
@@ -427,6 +441,7 @@ def train_m1(
             input_signals=all_signals,
             events_sr_rb=spike_recorder_rb.get("events"),
             nrns_rb=network.nrns_rb,
+            n_sequences=config.plotting.spikes_plot_n_sequences
         )
         weight_colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
         n_exc = config.neurons.n_exc
