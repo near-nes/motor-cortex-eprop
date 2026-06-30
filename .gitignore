@@ -27,3 +27,5 @@ results/*
 !results/legacy_sequence/**
 !results/sample_good_results/
 !results/sample_good_results/**
+
+tutorial_results/*
