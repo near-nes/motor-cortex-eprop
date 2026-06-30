@@ -466,6 +466,7 @@ def train_m1(
             loss=loss,
             recurrent_events=events_rec,
             output_events=events_mm_out,
+            recurrent_neurons=network.nrns_rec,
         )
 
     return network

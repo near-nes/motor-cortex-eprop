@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+import nest
 import numpy as np
 
 
@@ -13,3 +14,4 @@ class TrainingOutputs:
     loss: np.ndarray
     recurrent_events: dict[str, Any]
     output_events: dict[str, Any]
+    recurrent_neurons: nest.NodeCollection
