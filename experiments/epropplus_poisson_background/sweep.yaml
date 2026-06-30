@@ -5,10 +5,35 @@ nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neur
 force_retrain: true
 
 fixed_overrides:
-  neurons.n_rec: 300
   task.n_iter: 250
 axes:
+  simulation.rng_seed:
+    - 1234
+    - 5678
+    - 9012
+    - 3456
+    - 7890
+    - 1
+    - 2
+    - 3
+    - 12
+    - 42
+  # synapses.exc.optimizer.eta:
+  #   - 1.0e-05
+  #   - 2.0e-05
+  #   - 4.0e-05
+  #   - 8.0e-05
+  #   - 1.0e-04
+  # synapses.inh.optimizer.eta:
+  #   - 1.0e-05
+  #   - 2.0e-05
+  #   - 4.0e-05
+  #   - 8.0e-05
+  #   - 1.0e-04
+  #   - 1.0e-03
+  #   - 1.0e-02
   # synapses.w_input:
+  #   - 0.05
   #   - 0.1
   #   - 0.25
   #   - 0.5
@@ -28,14 +53,3 @@ axes:
   #   - 3.0
   #   - 4.0
   #   - 5.0
-  simulation.rng_seed:
-    - 1234
-    - 5678
-    - 9012
-    - 3456
-    - 7890
-    - 1
-    - 2
-    - 3
-    - 12
-    - 42

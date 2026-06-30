@@ -328,9 +328,7 @@ class NeuronsConfig(BaseModel):
 class OptimizerConfig(BaseModel):
     """Optimizer parameters."""
 
-    type: Literal["gradient_descent"] = Field(
-        default="gradient_descent", description="Optimizer type"
-    )
+    type: str = Field(default="gradient_descent", description="Optimizer type.")
     eta: float = Field(default=0.01, description="Learning rate for optimizer")
     Wmin: float = Field(description="Minimum synaptic weight (pA)")
     Wmax: float = Field(description="Maximum synaptic weight (pA)")

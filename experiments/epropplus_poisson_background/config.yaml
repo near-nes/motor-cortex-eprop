@@ -61,8 +61,8 @@ neurons:
     tau_m: 20.0
     V_m: 0.0
 synapses:
-  w_input: 0.5
-  w_rec: 2.0
+  w_input: 0.05
+  w_rec: 3.0
   g: 4.0
   conn_bernoulli_p: 0.1
   static_delay: 1.0
@@ -79,14 +79,14 @@ synapses:
   inh:
     optimizer:
       type: gradient_descent
-      eta: 1.0e-05
+      eta: 4.0e-05
       Wmin: -1000.0
       Wmax: 0.0
       optimize_each_step: false
     plastic: true
     weight: -1.0
   rec_out:
-    weight: 1.0
+    weight: 0.5
   out_rec:
     weight: 2.0
 background:
@@ -114,5 +114,5 @@ plotting:
   do_plotting: true
 convergence:
   enabled: false
-  min_firing_rate_hz: 5.0
-  max_firing_rate_hz: 50.0
+  min_firing_rate_hz: 1.0
+  max_firing_rate_hz: 30.0
