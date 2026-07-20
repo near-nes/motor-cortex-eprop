@@ -16,8 +16,6 @@ training:
     target_angle_deg: 140.0
   - init_angle_deg: 90.0
     target_angle_deg: 20.0
-  - init_angle_deg: 90.0
-    target_angle_deg: 70.0
   n_input_neurons: 200
   planner_kp: 100.0
   planner_base_rate: 5
@@ -27,6 +25,16 @@ training:
   time_prep_ms: 650.0
   time_move_ms: 500.0
   time_post_ms: 350.0
+inference:
+  trajectories:
+    - init_angle_deg: 90.0
+      target_angle_deg: 140.0
+    - init_angle_deg: 90.0
+      target_angle_deg: 20.0
+    - init_angle_deg: 90.0
+      target_angle_deg: 140.0
+    - init_angle_deg: 90.0
+      target_angle_deg: 20.0
 rbf:
   num_centers: 25
   desired_min_rate: 0.0
