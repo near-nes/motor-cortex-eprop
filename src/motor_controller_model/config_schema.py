@@ -105,6 +105,17 @@ class TrainingSignalConfig(BaseModel):
         return self.time_prep_ms + self.time_move_ms + self.time_post_ms
 
 
+class InferenceConfig(BaseModel):
+    """Parameters for standalone inference evaluation."""
+
+    trajectories: List[TrajectorySpec] = Field(
+        default_factory=lambda: [
+            TrajectorySpec(init_angle_deg=90, target_angle_deg=140),
+            TrajectorySpec(init_angle_deg=90, target_angle_deg=20),
+        ]
+    )
+
+
 class TrainingTimings(BaseModel):
     """Computed timing parameters for one training run.
 
@@ -494,6 +505,7 @@ class PlottingConfig(BaseModel):
         description="Number of consecutive sequences shown in the spikes-and-dynamics plots.",
     )
 
+
 class ConvergenceConfig(BaseModel):
     """Post-training convergence verification."""
 
@@ -516,6 +528,7 @@ class MotorControllerConfig(BaseModel):
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
     task: TaskConfig = Field(default_factory=TaskConfig)
     training: TrainingSignalConfig = Field(default_factory=TrainingSignalConfig)
+    inference: InferenceConfig = Field(default_factory=InferenceConfig)
     rbf: RBFConfig = Field(default_factory=RBFConfig)
     neurons: NeuronsConfig = Field(default_factory=NeuronsConfig)
     synapses: SynapsesConfig = Field(default_factory=SynapsesConfig)

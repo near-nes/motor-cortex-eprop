@@ -41,10 +41,11 @@ def run_inference_test(
     install_nestml_module(nest_module)
 
     training_cfg = config.training
+    inference_cfg = config.inference
     step_ms = timings.step_ms
-    n_repeats = 2
-    pool_size = len(training_cfg.trajectories)
-    n_trajectories = pool_size * n_repeats
+
+    n_trajectories = len(inference_cfg.trajectories)
+
     # Run one configured sequence per trajectory.
     n_steps_per_seq = timings.n_timesteps_per_sequence
     sim_time_ms = n_steps_per_seq * n_trajectories * step_ms
@@ -56,17 +57,18 @@ def run_inference_test(
         config=config,
     )
 
-    # Build planner trajectory from configured training trajectories.
+    # Build planner trajectory from configured inference trajectories.
     all_signals = [
         generate_training_signals(
-            spec, training_cfg, step_ms, config.task.input_shift_ms
+            spec,
+            training_cfg,
+            step_ms,
+            config.task.input_shift_ms,
         )
-        for spec in training_cfg.trajectories
+        for spec in inference_cfg.trajectories
     ]
 
-    full_traj = np.tile(
-        np.concatenate([sig.input_trajectory for sig in all_signals]), n_repeats
-    )
+    full_traj = np.concatenate([sig.input_trajectory for sig in all_signals])
     # Pad trajectory to guarantee it covers the full simulation
     n_sim_steps = int(sim_time_ms / step_ms) + 1
     if len(full_traj) < n_sim_steps:
