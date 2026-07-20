@@ -4,22 +4,173 @@ output_dir: /projects/eprop_motor_net/epropplus_input_variability/sweeps
 nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
 force_retrain: true
 
-fixed_overrides:
-  task.n_iter: 12
-  plotting.spikes_plot_n_sequences: 12
-axes:
-  training.sampling.strategy:
-    - uniform
-    - sequential
-    - shuffled_epochs
-  # simulation.rng_seed:
-  #   - 1234
-  #   - 5678
-  #   - 9012
-  #   - 3456
-  #   - 7890
-  #   - 1
-  #   - 2
-  #   - 3
-  #   - 12
-  #   - 42
+runs:
+
+  # ============================================================
+  # Baseline: original two trajectories
+  # ============================================================
+
+  - name: baseline_sequential
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      training.trajectories:
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+
+  - name: baseline_uniform
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      training.trajectories:
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+
+  - name: baseline_shuffled_epochs
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      training.trajectories:
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+
+
+  # ============================================================
+  # +/- 1 degree variability
+  # ============================================================
+
+  - name: variability_1deg_sequential
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      training.trajectories: &trajectories_1deg
+        - {init_angle_deg: 89.0, target_angle_deg: 139.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 19.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 141.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 21.0}
+
+        - {init_angle_deg: 90.0, target_angle_deg: 139.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 19.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 141.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 21.0}
+
+        - {init_angle_deg: 91.0, target_angle_deg: 139.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 19.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 141.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 21.0}
+
+  - name: variability_1deg_uniform
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_shuffled_epochs
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      training.trajectories: *trajectories_1deg
+
+
+  # ============================================================
+  # +/- 2 degrees variability
+  # ============================================================
+
+  - name: variability_2deg_sequential
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      training.trajectories: &trajectories_2deg
+        - {init_angle_deg: 88.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 22.0}
+
+        - {init_angle_deg: 90.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 22.0}
+
+        - {init_angle_deg: 92.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 22.0}
+
+  - name: variability_2deg_uniform
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_shuffled_epochs
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      training.trajectories: *trajectories_2deg
+
+
+  # ============================================================
+  # +/- 5 degrees variability
+  # ============================================================
+
+  - name: variability_5deg_sequential
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      training.trajectories: &trajectories_5deg
+        - {init_angle_deg: 85.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 25.0}
+
+        - {init_angle_deg: 90.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 25.0}
+
+        - {init_angle_deg: 95.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 25.0}
+
+  - name: variability_5deg_uniform
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_shuffled_epochs
+    overrides:
+      task.n_iter: 500
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      training.trajectories: *trajectories_5deg
