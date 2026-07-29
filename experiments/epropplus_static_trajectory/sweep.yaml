@@ -1,0 +1,67 @@
+sweep_name: epropplus_static_trajectory
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+runs:
+
+  - name: static_trajectory_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &static_trajectories
+        # static, repeated to match the weight of one ±2° init-angle group
+        # (6 copies vs. 6 moving trajectories per group -> ~25% each)
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+
+        # ±2°
+        - {init_angle_deg: 88.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 22.0}
+
+        - {init_angle_deg: 90.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 22.0}
+
+        - {init_angle_deg: 92.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 22.0}
+
+  - name: static_trajectory_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *static_trajectories
+
+  - name: static_trajectory_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *static_trajectories

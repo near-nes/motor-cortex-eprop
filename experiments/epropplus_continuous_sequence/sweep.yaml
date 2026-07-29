@@ -1,0 +1,62 @@
+sweep_name: epropplus_continuous_sequence
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+# Tests the meeting-note idea of a continuous, chained sequence:
+# 90 -> 140 -> 140 -> 90 -> 20 -> 20 -> 90.
+#
+# Each entry's target_angle_deg matches the next entry's init_angle_deg,
+# and the "140->140" / "20->20" entries are held segments (same trick as
+# epropplus_static_trajectory's 90->90 entry). Combined with
+# training.sampling.strategy: sequential (presents the pool in this exact
+# order, repeating) and training.time_post_ms: 0 (see epropplus_no_post_zero
+# for why), the planner input never jumps between segments — the whole
+# chain should read as one continuous back-and-forth movement instead of
+# independent, discontinuous trajectories.
+#
+# NEST is never reset between training iterations (see m1_training.py),
+# so the underlying simulation was already continuous; what this removes
+# is the *value*-level discontinuity between consecutive segments.
+
+runs:
+
+  - name: continuous_sequence_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 996  # 166 full cycles of the 6-segment chain
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.time_post_ms: 0.0
+      training.trajectories: &continuous_chain
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 140.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 140.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 20.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 20.0, target_angle_deg: 90.0}
+
+  - name: continuous_sequence_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 996
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.time_post_ms: 0.0
+      training.trajectories: *continuous_chain
+
+  - name: continuous_sequence_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 996
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.time_post_ms: 0.0
+      training.trajectories: *continuous_chain

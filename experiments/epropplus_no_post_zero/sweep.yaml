@@ -1,0 +1,78 @@
+sweep_name: epropplus_no_post_zero
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+# Same trajectory pool as epropplus_static_trajectory, but with
+# training.time_post_ms set to 0: the post-movement phase used to zero
+# the planner input trajectory regardless of the actual target position
+# (see minjerk_dynamics.trajectory.generate_trajectory), which taught the
+# network a "fake zero" at the end of every sequence instead of holding
+# at the true target angle. Removing it tests whether that artifact was
+# contributing to the low-activity / zero-converged failure mode.
+
+runs:
+
+  - name: no_post_zero_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.time_post_ms: 0.0
+      training.trajectories: &no_post_zero_trajectories
+        # static, repeated to match the weight of one ±2° init-angle group
+        # (6 copies vs. 6 moving trajectories per group -> ~25% each)
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 90.0}
+
+        # ±2°
+        - {init_angle_deg: 88.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 22.0}
+
+        - {init_angle_deg: 90.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 22.0}
+
+        - {init_angle_deg: 92.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 22.0}
+
+  - name: no_post_zero_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.time_post_ms: 0.0
+      training.trajectories: *no_post_zero_trajectories
+
+  - name: no_post_zero_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.time_post_ms: 0.0
+      training.trajectories: *no_post_zero_trajectories
