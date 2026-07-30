@@ -38,6 +38,11 @@ runs:
         - {init_angle_deg: 90.0, target_angle_deg: 20.0}
         - {init_angle_deg: 20.0, target_angle_deg: 20.0}
         - {init_angle_deg: 20.0, target_angle_deg: 90.0}
+      # Standalone inference test must walk the same chain that was
+      # trained on, one lap, in order — otherwise the inference plot
+      # shows independent hops instead of the continuous movement this
+      # experiment is meant to demonstrate.
+      inference.trajectories: *continuous_chain
 
   - name: continuous_sequence_seed2345
     overrides:
@@ -49,6 +54,7 @@ runs:
       rbf.sdev_hz: 1500.0
       training.time_post_ms: 0.0
       training.trajectories: *continuous_chain
+      inference.trajectories: *continuous_chain
 
   - name: continuous_sequence_seed3456
     overrides:
@@ -60,3 +66,4 @@ runs:
       rbf.sdev_hz: 1500.0
       training.time_post_ms: 0.0
       training.trajectories: *continuous_chain
+      inference.trajectories: *continuous_chain
