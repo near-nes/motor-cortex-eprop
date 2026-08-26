@@ -3,7 +3,7 @@
 import hashlib
 import math
 from pathlib import Path
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 import structlog
 import yaml
@@ -359,6 +359,21 @@ class OptimizerConfig(BaseModel):
     optimize_each_step: bool = Field(
         default=False,
         description="If True, optimize each step, if False once per spike",
+    )
+    beta_1: Optional[float] = Field(
+        default=None,
+        description="Adam only: decay rate for the 1st moment (gradient) "
+        "estimate. NEST default 0.9. Unset uses NEST's default.",
+    )
+    beta_2: Optional[float] = Field(
+        default=None,
+        description="Adam only: decay rate for the 2nd moment (variance) "
+        "estimate. NEST default 0.999. Unset uses NEST's default.",
+    )
+    epsilon: Optional[float] = Field(
+        default=None,
+        description="Adam only: numerical-stability constant. NEST default "
+        "1e-7. Unset uses NEST's default.",
     )
 
 

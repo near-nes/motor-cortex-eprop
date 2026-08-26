@@ -252,7 +252,7 @@ class M1Network:
 
         params_syn_eprop_exc = {
             "optimizer": {
-                **optimizer_exc.model_dump(),
+                **optimizer_exc.model_dump(exclude_none=True),
                 "batch_size": self.config.task.gradient_batch_size,
             },
         }
@@ -264,7 +264,7 @@ class M1Network:
         if syn_cfg.inh.plastic:
             params_syn_eprop_inh = {
                 "optimizer": {
-                    **optimizer_inh.model_dump(),
+                    **optimizer_inh.model_dump(exclude_none=True),
                     "batch_size": self.config.task.gradient_batch_size,
                 },
                 "weight": syn_cfg.inh.weight,
