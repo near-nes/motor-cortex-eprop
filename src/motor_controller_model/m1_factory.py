@@ -8,8 +8,10 @@ from pathlib import Path
 import structlog
 
 from .config_schema import MotorControllerConfig
+from .convergence import TrainingDidNotConverge
 from .m1_network import M1Network
 from .m1_training import train_m1
+from .training_outputs import TrainingOutputs
 
 _log = structlog.get_logger("m1_factory")
 
@@ -45,7 +47,7 @@ _TRAINING_ONLY_EXCLUDE = {
     "git_commit": True,
     "recording": True,
     "plotting": True,
-    "task": {"n_iter", "learning_window_ms", "gradient_batch_size"},
+    "task": {"n_iter", "learning_start_ms", "gradient_batch_size"},
     "simulation": {"rng_seed", "print_time", "total_num_virtual_procs"},
     "training": {"trajectories", "time_prep_ms", "time_post_ms"},
 }
@@ -121,7 +123,8 @@ def get_m1_or_train(
     artifacts_dir: Path,
     nest_module: str,
     force_retrain: bool = False,
-) -> M1Network:
+    return_outputs: bool = False,
+) -> M1Network | tuple[M1Network, TrainingOutputs]:
     """
     Load a trained M1Network if available, otherwise train a new one.
 
@@ -131,9 +134,30 @@ def get_m1_or_train(
     _stamp_config(config)
 
     if not force_retrain and (network := _check_saved_model(config, artifacts_dir)):
+        if return_outputs:
+            raise ValueError(
+                "Training outputs are only available immediately after training. "
+                "Use force_retrain=True or set return_outputs=False."
+            )
         return network
 
     _log.info("training M1 model", artifacts_dir=str(artifacts_dir))
-    network = train_m1(config, artifacts_dir, nest_module=nest_module)
+    try:
+        result = train_m1(
+            config,
+            artifacts_dir,
+            nest_module=nest_module,
+            return_outputs=return_outputs,
+        )
+        network = result[0] if return_outputs else result
+    except TrainingDidNotConverge:
+        # Persist the config under a non-cacheable name so the run is visible
+        # but won't be picked up as a valid trained model on the next call.
+        config.to_yaml(artifacts_dir / "config.failed.yaml")
+        stale_config = artifacts_dir / "config.yaml"
+        if stale_config.exists():
+            stale_config.unlink()
+        raise
+
     config.to_yaml(artifacts_dir / "config.yaml")
-    return network
+    return result

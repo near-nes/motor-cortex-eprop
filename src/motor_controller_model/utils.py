@@ -14,22 +14,26 @@ def install_nestml_module(module_name: str = "motor_neuron_module"):
     """
     import nest
 
+    nestml_install_dir = (
+        Path(__file__).resolve().parent / "nestml_neurons" / "nestml_install"
+    )
+    module_path = nestml_install_dir / f"{module_name}.so"
+
     try:
         nest.Install(module_name)
         return
     except Exception:
         pass
 
+    if module_path.exists():
+        nest.Install(str(module_path))
+        return
+
     _log.debug("module not installed, compiling and installing NESTML neurons")
-    nestml_install_dir = (
-        Path(__file__).resolve().parent / "nestml_neurons" / "nestml_install"
-    )
-    module_path = nestml_install_dir / f"{module_name}.so"
 
     from .nestml_neurons.compile_nestml_neurons import compile_nestml_neurons
 
     compile_nestml_neurons()
-    nest.Install(str(module_path))
 
 
 def load_spike_data(file_path):

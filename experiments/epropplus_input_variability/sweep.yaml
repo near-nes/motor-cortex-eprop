@@ -1,0 +1,505 @@
+sweep_name: epropplus_degree_variability_focused
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/epropplus_input_variability/sweeps
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+runs:
+
+  # ============================================================
+  # +/- 3 degrees variability
+  # ============================================================
+
+  - name: variability_3deg_uniform_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_3deg
+        - {init_angle_deg: 87.0, target_angle_deg: 137.0}
+        - {init_angle_deg: 87.0, target_angle_deg: 17.0}
+        - {init_angle_deg: 87.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 87.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 87.0, target_angle_deg: 143.0}
+        - {init_angle_deg: 87.0, target_angle_deg: 23.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 137.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 17.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 143.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 23.0}
+        - {init_angle_deg: 93.0, target_angle_deg: 137.0}
+        - {init_angle_deg: 93.0, target_angle_deg: 17.0}
+        - {init_angle_deg: 93.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 93.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 93.0, target_angle_deg: 143.0}
+        - {init_angle_deg: 93.0, target_angle_deg: 23.0}
+
+  - name: variability_3deg_uniform_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_3deg
+
+  - name: variability_3deg_uniform_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_3deg
+
+  - name: variability_3deg_shuffled_epochs_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_3deg
+
+  - name: variability_3deg_shuffled_epochs_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_3deg
+
+  - name: variability_3deg_shuffled_epochs_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_3deg
+
+
+  # ============================================================
+  # +/- 4 degrees variability
+  # ============================================================
+
+  - name: variability_4deg_uniform_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_4deg
+        - {init_angle_deg: 86.0, target_angle_deg: 136.0}
+        - {init_angle_deg: 86.0, target_angle_deg: 16.0}
+        - {init_angle_deg: 86.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 86.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 86.0, target_angle_deg: 144.0}
+        - {init_angle_deg: 86.0, target_angle_deg: 24.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 136.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 16.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 144.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 24.0}
+        - {init_angle_deg: 94.0, target_angle_deg: 136.0}
+        - {init_angle_deg: 94.0, target_angle_deg: 16.0}
+        - {init_angle_deg: 94.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 94.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 94.0, target_angle_deg: 144.0}
+        - {init_angle_deg: 94.0, target_angle_deg: 24.0}
+
+  - name: variability_4deg_uniform_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_4deg
+
+  - name: variability_4deg_uniform_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_4deg
+
+  - name: variability_4deg_shuffled_epochs_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_4deg
+
+  - name: variability_4deg_shuffled_epochs_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_4deg
+
+  - name: variability_4deg_shuffled_epochs_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_4deg
+
+
+  # ============================================================
+  # +/- 5 degrees variability
+  # ============================================================
+
+  - name: variability_5deg_uniform_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_5deg
+        - {init_angle_deg: 85.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 25.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 25.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 25.0}
+
+  - name: variability_5deg_uniform_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_uniform_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_shuffled_epochs_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_shuffled_epochs_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_shuffled_epochs_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_5deg
+
+
+  # ============================================================
+  # +/- 6 degrees variability
+  # ============================================================
+
+  - name: variability_6deg_uniform_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_6deg
+        - {init_angle_deg: 84.0, target_angle_deg: 134.0}
+        - {init_angle_deg: 84.0, target_angle_deg: 14.0}
+        - {init_angle_deg: 84.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 84.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 84.0, target_angle_deg: 146.0}
+        - {init_angle_deg: 84.0, target_angle_deg: 26.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 134.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 14.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 146.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 26.0}
+        - {init_angle_deg: 96.0, target_angle_deg: 134.0}
+        - {init_angle_deg: 96.0, target_angle_deg: 14.0}
+        - {init_angle_deg: 96.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 96.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 96.0, target_angle_deg: 146.0}
+        - {init_angle_deg: 96.0, target_angle_deg: 26.0}
+
+  - name: variability_6deg_uniform_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_6deg
+
+  - name: variability_6deg_uniform_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_6deg
+
+  - name: variability_6deg_shuffled_epochs_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_6deg
+
+  - name: variability_6deg_shuffled_epochs_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_6deg
+
+  - name: variability_6deg_shuffled_epochs_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_6deg
+
+
+  # ============================================================
+  # +/- 7.5 degrees variability
+  # ============================================================
+
+  - name: variability_7p5deg_uniform_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_7p5deg
+        - {init_angle_deg: 82.5, target_angle_deg: 132.5}
+        - {init_angle_deg: 82.5, target_angle_deg: 12.5}
+        - {init_angle_deg: 82.5, target_angle_deg: 140.0}
+        - {init_angle_deg: 82.5, target_angle_deg: 20.0}
+        - {init_angle_deg: 82.5, target_angle_deg: 147.5}
+        - {init_angle_deg: 82.5, target_angle_deg: 27.5}
+        - {init_angle_deg: 90.0, target_angle_deg: 132.5}
+        - {init_angle_deg: 90.0, target_angle_deg: 12.5}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 147.5}
+        - {init_angle_deg: 90.0, target_angle_deg: 27.5}
+        - {init_angle_deg: 97.5, target_angle_deg: 132.5}
+        - {init_angle_deg: 97.5, target_angle_deg: 12.5}
+        - {init_angle_deg: 97.5, target_angle_deg: 140.0}
+        - {init_angle_deg: 97.5, target_angle_deg: 20.0}
+        - {init_angle_deg: 97.5, target_angle_deg: 147.5}
+        - {init_angle_deg: 97.5, target_angle_deg: 27.5}
+
+  - name: variability_7p5deg_uniform_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_7p5deg
+
+  - name: variability_7p5deg_uniform_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_7p5deg
+
+  - name: variability_7p5deg_shuffled_epochs_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_7p5deg
+
+  - name: variability_7p5deg_shuffled_epochs_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_7p5deg
+
+  - name: variability_7p5deg_shuffled_epochs_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_7p5deg
+
+
+  # ============================================================
+  # +/- 10 degrees variability
+  # Outer comparison point
+  # ============================================================
+
+  - name: variability_10deg_uniform_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_10deg
+        - {init_angle_deg: 80.0, target_angle_deg: 130.0}
+        - {init_angle_deg: 80.0, target_angle_deg: 10.0}
+        - {init_angle_deg: 80.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 80.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 80.0, target_angle_deg: 150.0}
+        - {init_angle_deg: 80.0, target_angle_deg: 30.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 130.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 10.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 150.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 30.0}
+        - {init_angle_deg: 100.0, target_angle_deg: 130.0}
+        - {init_angle_deg: 100.0, target_angle_deg: 10.0}
+        - {init_angle_deg: 100.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 100.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 100.0, target_angle_deg: 150.0}
+        - {init_angle_deg: 100.0, target_angle_deg: 30.0}
+
+  - name: variability_10deg_uniform_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_10deg
+
+  - name: variability_10deg_uniform_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_10deg
+
+  - name: variability_10deg_shuffled_epochs_seed1234
+    overrides:
+      simulation.rng_seed: 1234
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_10deg
+
+  - name: variability_10deg_shuffled_epochs_seed2345
+    overrides:
+      simulation.rng_seed: 2345
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_10deg
+
+  - name: variability_10deg_shuffled_epochs_seed3456
+    overrides:
+      simulation.rng_seed: 3456
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_10deg
