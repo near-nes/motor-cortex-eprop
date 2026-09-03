@@ -70,28 +70,22 @@ def run_inference_test(
 
     n_input = training_cfg.n_input_neurons
     planner_pos = nest.Create("tracking_neuron_nestml", n_input)
-    nest.SetStatus(
-        planner_pos,
-        {
+    planner_pos.set({
             "kp": training_cfg.planner_kp,
             "base_rate": training_cfg.planner_base_rate,
             "pos": True,
             "traj": full_traj.tolist(),
             "simulation_steps": sim_steps,
-        },
-    )
+        })
 
     planner_neg = nest.Create("tracking_neuron_nestml", n_input)
-    nest.SetStatus(
-        planner_neg,
-        {
+    planner_neg.set({
             "kp": training_cfg.planner_kp,
             "base_rate": training_cfg.planner_base_rate,
             "pos": False,
             "traj": full_traj.tolist(),
             "simulation_steps": sim_steps,
-        },
-    )
+        })
 
     network.connect(planner_pos)
     # network.connect(planner_neg)
@@ -111,13 +105,10 @@ def run_inference_test(
 
     # Keep eprop_readout learning-window gate open during standalone inference.
     gen_learning_window = nest.Create("step_rate_generator", 1)
-    nest.SetStatus(
-        gen_learning_window[0],
-        {
+    gen_learning_window[0].set({
             "amplitude_times": [step_ms],
             "amplitude_values": [1.0],
-        },
-    )
+        })
     nest.Connect(
         gen_learning_window,
         out_pos + out_neg,

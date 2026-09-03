@@ -170,13 +170,13 @@ class M1Network:
             "max_peak_rate": rbf_cfg.max_peak_rate_hz,
         }
         self.nrns_rb = nest.Create("rb_neuron_nestml", n_rb)
-        nest.SetStatus(self.nrns_rb, params_rb)
+        self.nrns_rb.set(params_rb)
 
         desired_rates = np.linspace(
             rbf_cfg.desired_min_rate, rbf_cfg.desired_max_rate, n_rb
         )
         for i, nrn in enumerate(self.nrns_rb):
-            nest.SetStatus(nrn, {"desired": desired_rates[i]})
+            nrn.set({"desired": desired_rates[i]})
 
         # 2. Create Recurrent & Output Neurons
         n_rec = self.config.neurons.n_rec
@@ -214,7 +214,7 @@ class M1Network:
             self.config.neurons.rec.V_th,
             len(self.nrns_rec),
         )
-        nest.SetStatus(self.nrns_rec, "V_m", v_m_init)
+        self.nrns_rec.set({"V_m": v_m_init})
 
         if train:
             out_params = {
@@ -239,9 +239,9 @@ class M1Network:
                     "eprop_isi_trace_cutoff": sequence_duration_ms,
                 }
             self.nrns_out_p = nest.Create(output_neuron_model, n_per_channel)
-            nest.SetStatus(self.nrns_out_p, out_params)
+            self.nrns_out_p.set(out_params)
             self.nrns_out_n = nest.Create(output_neuron_model, n_per_channel)
-            nest.SetStatus(self.nrns_out_n, out_params)
+            self.nrns_out_n.set(out_params)
 
         # 3. Create Connections
         if train:
@@ -455,5 +455,5 @@ class M1Network:
             conn = nest.GetConnections(
                 nest.NodeCollection([s]), nest.NodeCollection([t])
             )
-            nest.SetStatus(conn, {"weight": w})
+            conn.set({"weight": w})
         self._log.debug("connected updated weights rec to out")
