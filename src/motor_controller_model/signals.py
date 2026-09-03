@@ -7,8 +7,7 @@ generation — no dependency on complete_control.
 from dataclasses import dataclass
 
 import numpy as np
-
-from minjerk_dynamics import generate_trajectory, generate_motor_commands
+from minjerk_dynamics import generate_motor_commands, generate_trajectory
 
 from .config_schema import TrainingSignalConfig, TrajectorySpec
 

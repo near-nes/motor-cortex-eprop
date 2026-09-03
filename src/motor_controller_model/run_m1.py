@@ -10,10 +10,9 @@ import nest
 import numpy as np
 import structlog
 
-from .m1_network import M1Network
-
 from .config_schema import MotorControllerConfig, TrainingTimings
 from .m1_factory import get_m1_or_train
+from .m1_network import M1Network
 from .signals import generate_training_signals
 from .utils import install_nestml_module
 
@@ -27,26 +26,30 @@ def run_inference_test(
     nest_module: str,
 ):
     """Run standalone inference using tracking_neuron_nestml as planner input."""
+    timings = TrainingTimings.from_config(config)
+
     nest.ResetKernel()
     nest.SetKernelStatus(
         {
             "resolution": config.simulation.step,
             "total_num_virtual_procs": config.simulation.total_num_virtual_procs,
+            "rng_seed": config.simulation.rng_seed,
         }
     )
+    np.random.seed(config.simulation.rng_seed)
     install_nestml_module(nest_module)
 
     training_cfg = config.training
-    timings = TrainingTimings.from_config(config)
     step_ms = timings.step_ms
-    n_trajectories = timings.n_samples
-    # For inference: no input_shift, just sequence_ms per trajectory
+    n_repeats = 2
+    n_trajectories = timings.n_samples * n_repeats
+    # Run one configured sequence per trajectory.
     n_steps_per_seq = timings.n_timesteps_per_sequence
     sim_time_ms = n_steps_per_seq * n_trajectories * step_ms
 
     network.build_network(simulation_time_ms=sim_time_ms)
 
-    # Generate signals and build planner trajectory for inference
+    # Build planner trajectory from configured training trajectories.
     all_signals = [
         generate_training_signals(
             spec, training_cfg, step_ms, config.task.input_shift_ms
@@ -54,7 +57,9 @@ def run_inference_test(
         for spec in training_cfg.trajectories
     ]
 
-    full_traj = np.concatenate([sig.input_trajectory for sig in all_signals])
+    full_traj = np.tile(
+        np.concatenate([sig.input_trajectory for sig in all_signals]), n_repeats
+    )
     # Pad trajectory to guarantee it covers the full simulation
     n_sim_steps = int(sim_time_ms / step_ms) + 1
     if len(full_traj) < n_sim_steps:
@@ -65,30 +70,25 @@ def run_inference_test(
 
     n_input = training_cfg.n_input_neurons
     planner_pos = nest.Create("tracking_neuron_nestml", n_input)
-    nest.SetStatus(
-        planner_pos,
-        {
+    planner_pos.set({
             "kp": training_cfg.planner_kp,
             "base_rate": training_cfg.planner_base_rate,
             "pos": True,
             "traj": full_traj.tolist(),
             "simulation_steps": sim_steps,
-        },
-    )
+        })
 
     planner_neg = nest.Create("tracking_neuron_nestml", n_input)
-    nest.SetStatus(
-        planner_neg,
-        {
+    planner_neg.set({
             "kp": training_cfg.planner_kp,
             "base_rate": training_cfg.planner_base_rate,
             "pos": False,
             "traj": full_traj.tolist(),
             "simulation_steps": sim_steps,
-        },
-    )
+        })
 
     network.connect(planner_pos)
+    # network.connect(planner_neg)
 
     out_pos, out_neg = network.get_output_pops()
 
@@ -103,8 +103,28 @@ def run_inference_test(
     )
     nest.Connect(mm_out, out_pos + out_neg)
 
+    # Keep eprop_readout learning-window gate open during standalone inference.
+    gen_learning_window = nest.Create("step_rate_generator", 1)
+    gen_learning_window[0].set({
+            "amplitude_times": [step_ms],
+            "amplitude_values": [1.0],
+        })
+    nest.Connect(
+        gen_learning_window,
+        out_pos + out_neg,
+        "all_to_all",
+        {
+            "synapse_model": "rate_connection_delayed",
+            "delay": step_ms,
+            "receptor_type": 1,
+        },
+    )
+
     sr_rb = nest.Create("spike_recorder", {"start": step_ms, "stop": sim_time_ms})
     nest.Connect(network.nrns_rb, sr_rb)
+
+    sr_rec = nest.Create("spike_recorder", {"start": step_ms, "stop": sim_time_ms})
+    nest.Connect(network.nrns_rec, sr_rec)
 
     _log.debug("simulating inference", sim_time_ms=sim_time_ms)
     nest.Simulate(sim_time_ms)
@@ -114,13 +134,13 @@ def run_inference_test(
     idc_pos = events["senders"] == out_pos.tolist()[0]
     idc_neg = events["senders"] == out_neg.tolist()[0]
     events_rb = sr_rb.get("events")
+    events_rec = sr_rec.get("events")
 
-    fig, axs = plt.subplots(3, 1, sharex=True, figsize=(10, 8), dpi=300)
+    fig, axs = plt.subplots(4, 1, sharex=True, figsize=(10, 10), dpi=300)
 
     # Row 0: planner input trajectory
-    one_iter = np.concatenate([sig.input_trajectory for sig in all_signals])
-    t_traj = np.arange(len(one_iter)) * step_ms
-    axs[0].plot(t_traj, np.rad2deg(one_iter), lw=1.5, color="#1f77b4")
+    t_traj = np.arange(len(full_traj)) * step_ms
+    axs[0].plot(t_traj, np.rad2deg(full_traj), lw=1.5, color="#1f77b4")
     axs[0].set_ylabel("planner (deg)")
     axs[0].grid(True, linestyle="--", alpha=0.3)
 
@@ -138,23 +158,37 @@ def run_inference_test(
     axs[1].set_ylabel(r"$z_{rb}$")
     axs[1].grid(True, linestyle="--", alpha=0.3)
 
-    # Row 2: readout signals
-    axs[2].plot(
+    # Row 2: M1 recurrent spike raster
+    rec_ids = network.nrns_rec.tolist()
+    rec_mask = np.isin(events_rec["senders"], rec_ids)
+    if np.any(rec_mask):
+        axs[2].scatter(
+            events_rec["times"][rec_mask],
+            events_rec["senders"][rec_mask],
+            s=2,
+            color="black",
+            alpha=0.7,
+        )
+    axs[2].set_ylabel(r"$z_{rec}$")
+    axs[2].grid(True, linestyle="--", alpha=0.3)
+
+    # Row 3: readout signals
+    axs[3].plot(
         events["times"][idc_pos],
         events["readout_signal"][idc_pos],
         label="Pos Readout",
         color="blue",
     )
-    axs[2].plot(
+    axs[3].plot(
         events["times"][idc_neg],
         events["readout_signal"][idc_neg],
         label="Neg Readout",
         color="red",
     )
-    axs[2].set_ylabel("Rate Signal")
-    axs[2].set_xlabel("Time (ms)")
-    axs[2].legend()
-    axs[2].grid(True, linestyle="--", alpha=0.3)
+    axs[3].set_ylabel("Rate Signal")
+    axs[3].set_xlabel("Time (ms)")
+    axs[3].legend()
+    axs[3].grid(True, linestyle="--", alpha=0.3)
 
     # Trajectory boundaries
     total_seq_ms = n_steps_per_seq * step_ms
@@ -187,12 +221,24 @@ def main():
         action="store_true",
         help="Force retraining even if cache exists",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Path to experiment YAML config (default: built-in MotorControllerConfig defaults)",
+    )
     default_artifacts = Path(__file__).resolve().parent.parent.parent / "results"
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=default_artifacts,
         help=f"Directory to save artifacts (default: {default_artifacts})",
+    )
+    parser.add_argument(
+        "--run-name",
+        type=str,
+        default=None,
+        help="Optional run subdirectory name created inside --output-dir",
     )
     parser.add_argument(
         "--nest-module",
@@ -202,8 +248,14 @@ def main():
     )
     args = parser.parse_args()
 
-    config = MotorControllerConfig()
-    artifacts_dir = args.output_dir
+    if args.config is not None:
+        config = MotorControllerConfig.from_yaml(args.config)
+    else:
+        config = MotorControllerConfig()
+
+    artifacts_dir = (
+        args.output_dir / args.run_name if args.run_name else args.output_dir
+    )
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     network = get_m1_or_train(

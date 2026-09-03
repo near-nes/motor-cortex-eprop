@@ -1,0 +1,44 @@
+sweep_name: update_eprop_neuron_model_test
+base_config: update_eprop_neuron_model.yaml
+output_dir: ../../results/sweeps
+nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+fixed_overrides:
+  synapses.w_input: 1.0
+  synapses.w_rec: 4.0
+  synapses.exc.optimizer.eta: 1e-5
+  synapses.inh.optimizer.eta: 1e-5
+  neurons.rec.c_reg: 0.0
+axes:
+  rbf.sdev_hz:
+    - 3600.0
+    - 1800.0
+    - 7200.0
+  rbf.max_peak_rate_hz:
+    - 800.0
+    - 400.0
+    - 1600.0
+  rbf.num_centers:
+    - 10
+    - 15
+    - 20
+
+# runs:
+#   - name: baseline
+#     overrides: {
+#       synapses.inh.plastic: false,
+#     }
+
+#   - name: inh_plastic
+#     overrides: {
+#       synapses.inh.plastic: true,
+#     }
+
+# fixed_overrides:
+#   synapses.w_input: 1.5
+#   synapses.w_rec: 0.5
+# axes:
+#   nrns_rec:
+#     - 100
+#     - 200
+#     - 300

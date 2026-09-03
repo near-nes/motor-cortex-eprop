@@ -101,7 +101,7 @@ def plot_all_loss_curves(
 
     Usage:
         python -m motor_controller_model.plot_results
-    Outputs are saved in sim_results/ at the repository root.
+    Outputs are saved in results/ at the repository root.
     """
     import glob
 
@@ -140,7 +140,7 @@ def plot_all_loss_curves(
         print("No *results.npz files found in", results_dir)
         return
 
-    # The rest of the function remains the same, but is now more robust.
+    # Rank scenarios by the selected metric.
     metrics.sort(key=lambda x: x[1])
 
     print(f"--- Results (ranked by average of last {avg_last_n} iterations) ---")
@@ -185,6 +185,7 @@ def plot_training_error(loss, out_path, x=None, xlabel="training iteration"):
         loss = loss[:minlen]
     fig, ax = plt.subplots(figsize=(4, 3))  # Changed figure size here
     ax.plot(x, loss)
+    ax.set_yscale("log", nonpositive="clip")
     ax.set_ylabel(r"$E = \frac{1}{2} \sum_{t,k} (y_k^t -y_k^{*,t})^2$")
     ax.set_xlabel(xlabel)
 
@@ -299,22 +300,47 @@ def plot_spikes_and_dynamics(
             axs[row + 1, col], events_mm_rec, "V_m", r"$v_j$ (mV)", xlims, rec_colors
         )
         plot_recordable(
-            axs[row + 2, col], events_mm_rec, "surrogate_gradient", r"$\psi_j$", xlims, rec_colors
+            axs[row + 2, col],
+            events_mm_rec,
+            "surrogate_gradient",
+            r"$\psi_j$",
+            xlims,
+            rec_colors,
         )
         plot_recordable(
-            axs[row + 3, col], events_mm_rec, "learning_signal", r"$L_j$ (pA)", xlims, rec_colors
+            axs[row + 3, col],
+            events_mm_rec,
+            "learning_signal",
+            r"$L_j$ (pA)",
+            xlims,
+            rec_colors,
         )
         plot_recordable(
             axs[row + 4, col], events_mm_out, "V_m", r"$v_k$ (mV)", xlims, out_colors
         )
         plot_recordable(
-            axs[row + 5, col], events_mm_out, "target_signal", r"$y^*_k$", xlims, out_colors
+            axs[row + 5, col],
+            events_mm_out,
+            "target_signal",
+            r"$y^*_k$",
+            xlims,
+            out_colors,
         )
         plot_recordable(
-            axs[row + 6, col], events_mm_out, "readout_signal", r"$y_k$", xlims, out_colors
+            axs[row + 6, col],
+            events_mm_out,
+            "readout_signal",
+            r"$y_k$",
+            xlims,
+            out_colors,
         )
         plot_recordable(
-            axs[row + 7, col], events_mm_out, "error_signal", r"$y_k-y^*_k$", xlims, out_colors
+            axs[row + 7, col],
+            events_mm_out,
+            "error_signal",
+            r"$y_k-y^*_k$",
+            xlims,
+            out_colors,
         )
 
     # Draw M1 sequence phase overlays on both columns
@@ -413,12 +439,18 @@ def plot_weight_time_courses(
     plt.close(fig)
 
 
-def plot_weight_matrices(weights_pre_train, weights_post_train, colors, out_path):
+def plot_weight_matrices(
+    weights_pre_train,
+    weights_post_train,
+    colors,
+    out_path,
+    n_exc: int | None = None,
+):
     """
     Plot the initial and final weight matrices for recurrent and output connections.
-    This function efficiently reconstructs dense weight matrices from sparse connection data
-    provided by `get_weights` and maintains the original 2x2 plot layout and all other
-    plot configurations, including the colorbar's appearance and position.
+    Generates two figures:
+    1. 2x2 plot: rec_rec and rec_out
+    2. Separate figure: rb_rec pre/post weight matrices only
     """
 
     def reconstruct_weight_matrix(conns_data):
@@ -441,13 +473,21 @@ def plot_weight_matrices(weights_pre_train, weights_post_train, colors, out_path
         weight_matrix[target_indices, source_indices] = conns_data["weight"]
         return weight_matrix
 
+    def _symmetric_norm(min_val: float, max_val: float):
+        """Use a symmetric range around zero so zero maps to white."""
+        max_abs = max(abs(min_val), abs(max_val))
+        if np.isclose(max_abs, 0.0):
+            max_abs = 1e-9
+        return mpl.colors.Normalize(vmin=-max_abs, vmax=max_abs)
+
     cmap = mpl.colors.LinearSegmentedColormap.from_list(
         "cmap", ((0.0, colors["red"]), (0.5, colors["white"]), (1.0, colors["blue"]))
     )
 
+    # ===== FIGURE 1: rec_rec and rec_out weight matrices =====
     fig, axs = plt.subplots(2, 2, sharex="col", sharey="row", figsize=(10, 8))
     all_w_extrema = []
-    for k in weights_pre_train.keys():
+    for k in ["rec_rec", "rec_out"]:
         w_pre = weights_pre_train[k]["weight"]
         w_post = weights_post_train[k]["weight"]
         all_w_extrema.append(
@@ -455,7 +495,7 @@ def plot_weight_matrices(weights_pre_train, weights_post_train, colors, out_path
         )
     vmin = np.min(all_w_extrema)
     vmax = np.max(all_w_extrema)
-    norm = mpl.colors.TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+    norm = _symmetric_norm(vmin, vmax)
     args = {"cmap": cmap, "norm": norm}
 
     for i, weights in zip([0, 1], [weights_pre_train, weights_post_train]):
@@ -468,6 +508,19 @@ def plot_weight_matrices(weights_pre_train, weights_post_train, colors, out_path
         axs[0, i].pcolormesh(weights["rec_rec"]["weight_matrix"], **args)
         cmesh = axs[1, i].pcolormesh(weights["rec_out"]["weight_matrix"], **args)
         axs[1, i].set_xlabel("recurrent\nneurons")
+
+        if n_exc is not None:
+            # Rec->Rec: both axes are recurrent neurons.
+            axs[0, i].axvline(
+                n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5
+            )
+            axs[0, i].axhline(
+                n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5
+            )
+            # Rec->Out: x-axis is recurrent neurons.
+            axs[1, i].axvline(
+                n_exc, color="k", linestyle="--", linewidth=0.8, alpha=0.5
+            )
     axs[0, 0].set_ylabel("recurrent\nneurons")
     axs[1, 0].set_ylabel("readout\nneurons")
     fig.align_ylabels(axs[:, 0])
@@ -476,12 +529,48 @@ def plot_weight_matrices(weights_pre_train, weights_post_train, colors, out_path
         0.5, 1.1, "post-training", transform=axs[0, 1].transAxes, ha="center"
     )
     axs[1, 0].yaxis.get_major_locator().set_params(integer=True)
+    fig.tight_layout(rect=[0, 0, 0.88, 1])
     fig.subplots_adjust(right=0.88)
     cbar_ax = fig.add_axes([0.90, 0.20, 0.02, 0.6])
     cbar = plt.colorbar(cmesh, cax=cbar_ax, label="weight (pA)")
-    fig.tight_layout(rect=[0, 0, 0.88, 1])
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
+
+    # ===== FIGURE 2: rb_rec pre/post weight matrices =====
+    fig2, axs2 = plt.subplots(1, 2, sharex="col", sharey="row", figsize=(10, 4))
+
+    w_pre = weights_pre_train["rb_rec"]
+    w_post = weights_post_train["rb_rec"]
+
+    w_pre_matrix = reconstruct_weight_matrix(w_pre)
+    w_post_matrix = reconstruct_weight_matrix(w_post)
+
+    w_pre_vals = np.asarray(w_pre["weight"], dtype=float)
+    w_post_vals = np.asarray(w_post["weight"], dtype=float)
+    vmin_rb = min(np.min(w_pre_vals), np.min(w_post_vals))
+    vmax_rb = max(np.max(w_pre_vals), np.max(w_post_vals))
+    norm_rb = _symmetric_norm(vmin_rb, vmax_rb)
+    args_rb = {"cmap": cmap, "norm": norm_rb}
+
+    axs2[0].pcolormesh(w_pre_matrix, **args_rb)
+    cmesh2 = axs2[1].pcolormesh(w_post_matrix, **args_rb)
+
+    axs2[0].set_ylabel("recurrent\nneurons")
+    axs2[0].set_xlabel("RB\nneurons")
+    axs2[1].set_xlabel("RB\nneurons")
+    axs2[0].text(0.5, 1.1, "pre-training", transform=axs2[0].transAxes, ha="center")
+    axs2[1].text(0.5, 1.1, "post-training", transform=axs2[1].transAxes, ha="center")
+    axs2[0].yaxis.get_major_locator().set_params(integer=True)
+
+    fig2.tight_layout(rect=[0, 0, 0.88, 1])
+    fig2.subplots_adjust(right=0.88)
+    cbar_ax2 = fig2.add_axes([0.90, 0.20, 0.02, 0.6])
+    cbar2 = plt.colorbar(cmesh2, cax=cbar_ax2, label="weight (pA)")
+
+    # Save with modified filename
+    rb_rec_path = str(out_path).replace("weight_matrices.png", "rb_rec_weights.png")
+    fig2.savefig(rb_rec_path, dpi=300)
+    plt.close(fig2)
 
 
 def tutorial_plot_trajectories_and_targets(
@@ -677,7 +766,7 @@ def tutorial_plot_trajectories_and_targets(
                 )
 
     else:
-        # Trajectory mode: original visualization
+        # Trajectory input mode.
         n_trials = len(trajectory_files)
         duration_ms = 650
         num_bins = 650

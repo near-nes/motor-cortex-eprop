@@ -1,0 +1,47 @@
+simulation:
+  step: 1.0
+  total_num_virtual_procs: 24
+
+task:
+  n_iter: 100
+  input_shift_ms: 100.0
+  learning_start_ms: 1.0
+
+training:
+  time_prep_ms: 100.0
+  time_move_ms: 500.0
+  time_post_ms: 100.0
+  trajectories:
+    - init_angle_deg: 90.0
+      target_angle_deg: 140.0
+    - init_angle_deg: 90.0
+      target_angle_deg: 20.0
+
+rbf:
+  sdev_hz: 2400.0
+  max_peak_rate_hz: 800.0
+  num_centers: 30
+  buffer_size: 10.0
+
+synapses:
+  w_input: 0.6
+  w_rec: 0.3
+  inh:
+    plastic: true
+    optimizer:
+      eta: 2e-5
+      Wmin: -1000.0
+      Wmax: 0.0
+  exc:
+    optimizer:
+      eta: 2e-5
+      Wmin: 0.0
+      Wmax: 1000.0
+
+neurons:
+  out:
+    tau_m: 30.0
+  rec:
+    c_reg: 0.0
+    gamma: 10.0
+    beta: 30.0

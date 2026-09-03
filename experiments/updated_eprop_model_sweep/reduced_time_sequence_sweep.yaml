@@ -1,0 +1,13 @@
+sweep_name: reduced_time_sequence
+base_config: reduced_time_sequence.yaml
+output_dir: /projects/eprop_motor_net/default_eprop_model/sweeps
+nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+fixed_overrides:
+  neurons.exc_adapt_ratio: 0.25
+axes:
+  neurons.n_rec:
+    - 300
+    - 400
+    - 500

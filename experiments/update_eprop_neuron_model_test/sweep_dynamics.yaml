@@ -1,0 +1,46 @@
+sweep_name: eprop_dynamics_opt
+base_config: update_eprop_neuron_model_opt_rbf.yaml
+output_dir: /projects/eprop_motor_net/default_eprop_model/sweeps
+nest_module: motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+# fixed_overrides:
+#   task.n_iter: 500
+
+axes:
+  rbf.buffer_size:
+    - 10.0
+    - 30.0
+    - 50.0
+  rbf.num_centers:
+    - 15
+    - 20
+    - 25
+    - 30
+  neurons.out.tau_m:
+    - 20.0
+    - 40.0
+  neurons.n_rec:
+    - 200
+    - 400
+    - 500
+  rbf.sdev_hz:
+    - 1200.0
+    - 1800.0
+    - 2400.0
+    - 3000.0
+  neurons.rec.c_reg:
+    - 0.0
+    - 10.0
+    - 25.0
+    - 50.0
+
+# ========== Running analysis ==========
+# Sweep root: /home/shimoura/Github/motor-cortex-eprop/results/sweeps/eprop_dynamics_opt/20260428_214916
+# Best run by min(activity_first): neurons_n_rec_400__neurons_out_tau_m_40__rbf_buffer_size_20__rbf_num_centers_30__task_n_iter_50 (0.83048254)
+# Top runs:
+# 1. name=neurons_n_rec_400__neurons_out_tau_m_40__rbf_buffer_size_20__rbf_num_centers_30__task_n_iter_50, activity_first=0.83048254, runtime_s=126.26
+# 2. name=neurons_n_rec_200__neurons_out_tau_m_20__rbf_buffer_size_10__rbf_num_centers_25__task_n_iter_50, activity_first=0.84786924, runtime_s=26.762
+# 3. name=neurons_n_rec_400__neurons_out_tau_m_40__rbf_buffer_size_50__rbf_num_centers_30__task_n_iter_50, activity_first=0.86783782, runtime_s=49.838
+# 4. name=neurons_n_rec_500__neurons_out_tau_m_40__rbf_buffer_size_50__rbf_num_centers_25__task_n_iter_50, activity_first=0.92617402, runtime_s=124.429
+# 5. name=neurons_n_rec_200__neurons_out_tau_m_40__rbf_buffer_size_10__rbf_num_centers_30__task_n_iter_50, activity_first=0.96056322, runtime_s=27.758

@@ -5,9 +5,10 @@
 #
 # This script generates NEST target code from NESTML files and installs the neuron module for use in simulations.
 
-from pynestml.frontend.pynestml_frontend import generate_nest_target
 from pathlib import Path
+
 import nest
+from pynestml.frontend.pynestml_frontend import generate_nest_target
 
 
 def compile_nestml_neurons():
