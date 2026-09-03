@@ -19,6 +19,21 @@ class M1SubModule(Protocol):
     def get_output_pops(self) -> Tuple: ...
 
 
+def adapt_eprop_params_to_nest(params: dict) -> dict:
+    """Translate surrogate-gradient parameters to the running NEST version.
+
+    NEST 3.10 renamed the eprop parameters: beta -> surrogate_gradient_width
+    (width = 1/beta) and gamma -> surrogate_gradient_height. The formulas are
+    otherwise identical, so the translation is exact.
+    """
+    if "beta" not in params or "beta" in nest.GetDefaults("eprop_iaf"):
+        return params
+    params = dict(params)
+    params["surrogate_gradient_width"] = 1.0 / params.pop("beta")
+    params["surrogate_gradient_height"] = params.pop("gamma")
+    return params
+
+
 def get_weights(pop_pre, pop_post):
     """Extract connection weights between two populations as a dictionary."""
     conns = nest.GetConnections(pop_pre, pop_post).get(["source", "target", "weight"])
@@ -171,8 +186,12 @@ class M1Network:
         n_exc_regular = self.config.neurons.n_exc_regular
         n_inh = n_rec - n_exc
         rec_cfg = self.config.neurons.rec
-        rec_params_regular = rec_cfg.to_nest_params(step_ms, include_adapt=False)
-        rec_params_adapt = rec_cfg.to_nest_params(step_ms, include_adapt=True)
+        rec_params_regular = adapt_eprop_params_to_nest(
+            rec_cfg.to_nest_params(step_ms, include_adapt=False)
+        )
+        rec_params_adapt = adapt_eprop_params_to_nest(
+            rec_cfg.to_nest_params(step_ms, include_adapt=True)
+        )
 
         recurrent_parts = []
         if n_exc_regular:
