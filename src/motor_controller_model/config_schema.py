@@ -1,12 +1,13 @@
 """Pydantic schema for motor controller model configuration."""
 
 import hashlib
+import math
 from pathlib import Path
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 import structlog
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 _log = structlog.get_logger("m1_config")
 
@@ -17,7 +18,7 @@ class SimulationConfig(BaseModel):
     rng_seed: int = Field(default=1234, description="Random seed for reproducibility")
     print_time: bool = Field(default=False, description="Print simulation progress")
     total_num_virtual_procs: int = Field(
-        default=16, description="Number of virtual processes for NEST"
+        default=24, description="Number of virtual processes for NEST"
     )
     step: float = Field(default=1.0, description="Simulation time step (ms)")
 
@@ -28,18 +29,17 @@ class TaskConfig(BaseModel):
     gradient_batch_size: int = Field(
         default=1, description="Batch size for gradient computation"
     )
-    n_iter: int = Field(default=200, description="Number of training iterations")
+    n_iter: int = Field(default=500, description="Number of training iterations")
     input_shift_ms: float = Field(
-        default=50.0,
+        default=100.0,
         description="Temporal delay to shift M1 target forward (ms)",
     )
-    learning_window_ms: float = Field(
-        default=500.0,
-        description="Duration (ms) of the learning window, anchored to the END of each "
-        "update interval. NEST zeros the error/target/readout signals for the first "
-        "(update_interval - learning_window) ms of each sequence. "
-        "E.g. with sequence=1150ms and learning_window=550ms, learning is active "
-        "during the last 550ms (i.e. from t=600 to t=1150 within each sequence).",
+    learning_start_ms: float = Field(
+        default=1.0,
+        description="Absolute start time (ms) for learning window within each sequence. "
+        "This drives the explicit eprop_readout learning-window generator (receptor 1). "
+        "E.g. with sequence=1150ms and learning_start_ms=600ms, learning is active "
+        "from t=600 to t=1150 within each sequence.",
     )
 
 
@@ -50,6 +50,19 @@ class TrajectorySpec(BaseModel):
     target_angle_deg: float
 
 
+class TrainingSamplingConfig(BaseModel):
+    """Training trajectory sampling."""
+
+    strategy: Literal[
+        "sequential",
+        "uniform",
+        "shuffled_epochs",
+    ] = Field(
+        default="shuffled_epochs",
+        description="Strategy used to sample trajectories during training.",
+    )
+
+
 class TrainingSignalConfig(BaseModel):
     """Parameters for end-to-end training signal generation."""
 
@@ -57,15 +70,9 @@ class TrainingSignalConfig(BaseModel):
         default_factory=lambda: [
             TrajectorySpec(init_angle_deg=90, target_angle_deg=140),
             TrajectorySpec(init_angle_deg=90, target_angle_deg=20),
-            # TrajectorySpec(init_angle_deg=0, target_angle_deg=90),
-            # TrajectorySpec(init_angle_deg=90, target_angle_deg=90),
-            # TrajectorySpec(init_angle_deg=90, target_angle_deg=20),
-            # TrajectorySpec(init_angle_deg=20, target_angle_deg=20),
-            # TrajectorySpec(init_angle_deg=20, target_angle_deg=80),
-            # TrajectorySpec(init_angle_deg=80, target_angle_deg=140),
-            # TrajectorySpec(init_angle_deg=90, target_angle_deg=90),
         ]
     )
+    sampling: TrainingSamplingConfig = Field(default_factory=TrainingSamplingConfig)
     n_input_neurons: int = Field(
         default=200, description="Neurons per channel (pos/neg) for planner input"
     )
@@ -83,46 +90,58 @@ class TrainingSignalConfig(BaseModel):
         default=0.00189, description="Moment of inertia for 1-DOF robot (kg·m²)"
     )
     time_prep_ms: float = Field(
-        default=50.0, description="Preparation phase duration (ms)"
+        default=650.0, description="Preparation phase duration (ms)"
     )
     time_move_ms: float = Field(
         default=500.0, description="Movement phase duration (ms)"
     )
     time_post_ms: float = Field(
-        default=0.0, description="Post-movement phase duration (ms)"
+        default=350.0, description="Post-movement phase duration (ms)"
+    )
+
+    @property
+    def sequence_duration_ms(self) -> float:
+        """Total sequence duration in milliseconds."""
+        return self.time_prep_ms + self.time_move_ms + self.time_post_ms
+
+
+class InferenceConfig(BaseModel):
+    """Parameters for standalone inference evaluation."""
+
+    trajectories: List[TrajectorySpec] = Field(
+        default_factory=lambda: [
+            TrajectorySpec(init_angle_deg=90, target_angle_deg=140),
+            TrajectorySpec(init_angle_deg=90, target_angle_deg=20),
+        ]
     )
 
 
 class TrainingTimings(BaseModel):
-    """Computed timing parameters for a training run.
+    """Computed timing parameters for one training run.
 
-    Derived from TaskConfig + TrainingSignalConfig + SimulationConfig.
+    One training iteration corresponds to the presentation of one complete
+    trajectory sequence.
     """
 
     step_ms: float
     sequence_ms: float
     input_shift_ms: float
     learning_window: float
+    pool_size: int
     n_samples: int
-    n_iter: int
 
     @classmethod
     def from_config(cls, config: "MotorControllerConfig") -> "TrainingTimings":
         task = config.task
         step_ms = config.simulation.step
         training = config.training
-        sequence_ms = (
-            training.time_prep_ms + training.time_move_ms + training.time_post_ms
-        )
-        learning_window = min(task.learning_window_ms, sequence_ms)
-        expected_lw = sequence_ms - task.input_shift_ms
-        if learning_window != expected_lw:
+        sequence_ms = training.sequence_duration_ms
+        learning_window = sequence_ms - task.learning_start_ms
+        if learning_window <= 0:
             _log.warning(
-                "learning_window_ms differs from sequence_ms - input_shift_ms; "
-                "the network may be penalized during the observation period",
-                learning_window_ms=learning_window,
-                expected=expected_lw,
-                input_shift_ms=task.input_shift_ms,
+                "learning_start_ms is at or past the end of sequence; "
+                "learning window will be empty or invalid",
+                learning_start_ms=task.learning_start_ms,
                 sequence_ms=sequence_ms,
             )
         return cls(
@@ -130,8 +149,8 @@ class TrainingTimings(BaseModel):
             sequence_ms=sequence_ms,
             input_shift_ms=task.input_shift_ms,
             learning_window=learning_window,
-            n_samples=len(training.trajectories),
-            n_iter=task.n_iter,
+            pool_size=len(training.trajectories),
+            n_samples=task.n_iter,
         )
 
     @property
@@ -140,9 +159,7 @@ class TrainingTimings(BaseModel):
 
     @property
     def task_ms(self) -> float:
-        return (
-            self.n_timesteps_per_sequence * self.n_samples * self.n_iter * self.step_ms
-        )
+        return self.n_timesteps_per_sequence * self.n_samples * self.step_ms
 
 
 class RBFConfig(BaseModel):
@@ -153,7 +170,7 @@ class RBFConfig(BaseModel):
     """
 
     num_centers: int = Field(
-        default=20, description="Number of RBF centers for input encoding"
+        default=15, description="Number of RBF centers for input encoding"
     )
     desired_min_rate: float = Field(
         default=0.0, description="Lower bound of desired-rate linspace (Hz)"
@@ -170,10 +187,10 @@ class RBFConfig(BaseModel):
     )
     base_rate: float = Field(default=0.0, description="Base firing rate in Hz")
     buffer_size: float = Field(
-        default=10.0, description="Size of the sliding window in ms"
+        default=30.0, description="Size of the sliding window in ms"
     )
     sdev_hz: float = Field(
-        default=1500.0,
+        default=2400.0,
         description="Gaussian width for rb_neurons (Hz). Controls selectivity: "
         "smaller values make each center respond more narrowly to its preferred input rate.",
     )
@@ -183,42 +200,115 @@ class RBFConfig(BaseModel):
     )
 
 
-class RecurrentNeuronConfig(BaseModel):
-    """Recurrent neuron parameters.
+class RecurrentNeuronCommon(BaseModel):
+    """Shared fields for recurrent neuron parameter sets.
 
-    Defaults match the NEST e-prop reference example
+    This class contains parameters common to both regular and adaptive LIF
+    neuron models. Keeping them in a common base makes it easy to reuse and
+    instantiate model-specific subclasses while preserving a flat, backward
+    compatible configuration surface via `RecurrentNeuronConfig`.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
+    # LIF parameters
     C_m: float = Field(default=250.0, description="Membrane capacitance (pF)")
-    c_reg: float = Field(default=300.0, description="Regularization constant")
-    E_L: float = Field(default=0.0, description="Resting membrane potential (mV)")
-    f_target: float = Field(default=10.0, description="Target firing rate (Hz)")
-    gamma: float = Field(default=0.3, description="Learning rate scaling factor")
+    E_L: float = Field(default=-70.0, description="Resting membrane potential (mV)")
     I_e: float = Field(default=0.0, description="External current (pA)")
-    regular_spike_arrival: bool = Field(
-        default=False, description="Use regular spike arrival"
+    t_ref: float = Field(default=2.0, description="Refractory period (ms)")
+    tau_m: float = Field(default=20.0, description="Membrane time constant (ms)")
+    V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
+    V_th: float = Field(default=-50.0, description="Spike threshold (mV)")
+
+    # E-prop specific parameters
+    c_reg: float = Field(default=25.0, description="Regularization constant")
+    f_target: float = Field(default=10.0, description="Target firing rate (Hz)")
+    beta: float = Field(
+        default=1.0,
+        description="Width scaling for surrogate gradient/pseudo-derivative",
+    )
+    gamma: float = Field(default=0.3, description="Learning rate scaling factor")
+    eligibility_tau_ms: float = Field(
+        default=20.0,
+        description="Eligibility trace time constant (ms) used to derive kappa",
+    )
+    tau_reg_ms: float = Field(
+        default=20.0,
+        description="Regularization trace time constant (ms) used to derive kappa_reg",
     )
     surrogate_gradient_function: str = Field(
         default="piecewise_linear", description="Surrogate gradient function"
     )
-    t_ref: float = Field(default=2.0, description="Refractory period (ms)")
-    tau_m: float = Field(default=20.0, description="Membrane time constant (ms)")
-    V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
-    V_th: float = Field(default=0.03, description="Spike threshold (mV)")
+
+
+class RecurrentNeuronAdaptive(RecurrentNeuronCommon):
+    """Adaptive LIF parameters (subtype of RecurrentNeuronCommon)."""
+
+    adapt_beta: float = Field(
+        default=1.0,
+        description=(
+            "Adaptation scaling (dimensionless). Used by LIF-adapt neuron models "
+            "to scale the adaptation current."
+        ),
+    )
+    adapt_tau: float = Field(
+        default=10.0,
+        description=(
+            "Adaptation time constant (ms) for LIF-adapt neuron models. Controls "
+            "the decay of the adaptation current."
+        ),
+    )
+
+
+class RecurrentNeuronConfig(RecurrentNeuronAdaptive):
+    """Recurrent neuron parameters (backwards-compatible surface).
+
+    This class remains the configuration object used throughout the codebase
+    but exposes convenience accessors to obtain subtype instances suitable for
+    model-specific usage (e.g. passing parameters to `eprop_iaf` vs
+    `eprop_iaf_adapt`).
+
+    Inherit from `RecurrentNeuronAdaptive` so adaptive keys are part of the
+    canonical schema and therefore included in YAML/dict dumps and available
+    when creating adaptive neuron populations.
+    """
+
+    # Provide properties to access grouped/subtype views without changing
+    # how the rest of the code constructs or reads `NeuronsConfig.rec`.
+    def as_common(self) -> RecurrentNeuronCommon:
+        # Exclude adaptive-only keys so constructing the common view
+        # doesn't fail validation when adapt fields are present.
+        data = self.model_dump(exclude={"adapt_beta", "adapt_tau"})
+        return RecurrentNeuronCommon(**data)
+
+    def as_adaptive(self) -> RecurrentNeuronAdaptive:
+        return RecurrentNeuronAdaptive(**self.model_dump())
+
+    def to_nest_params(self, step_ms: float, include_adapt: bool = False) -> dict:
+        """
+        Produce a NEST-friendly parameter dictionary.
+
+        - Converts `eligibility_tau_ms` and `tau_reg_ms` into `kappa` factors.
+        - Excludes `V_m`; recurrent membrane state is initialized explicitly in
+          `M1Network.build_network`.
+        - When `include_adapt` is False, adaptation keys are removed so the
+          resulting dict can be safely passed to non-adaptive neuron models.
+        """
+        params = self.model_dump(exclude={"eligibility_tau_ms", "tau_reg_ms", "V_m"})
+        params["kappa"] = float(math.exp(-step_ms / self.eligibility_tau_ms))
+        params["kappa_reg"] = float(math.exp(-step_ms / self.tau_reg_ms))
+        if not include_adapt:
+            params.pop("adapt_beta", None)
+            params.pop("adapt_tau", None)
+        return params
 
 
 class OutputNeuronConfig(BaseModel):
     """Output neuron parameters."""
 
     C_m: float = Field(default=250.0, description="Membrane capacitance (pF)")
-    E_L: float = Field(default=0.0, description="Resting membrane potential (mV)")
+    E_L: float = Field(default=-70.0, description="Resting membrane potential (mV)")
     I_e: float = Field(default=0.0, description="External current (pA)")
-    loss: str = Field(
-        default="mean_squared_error", description="Loss function for output neurons"
-    )
-    regular_spike_arrival: bool = Field(
-        default=False, description="Use regular spike arrival"
-    )
     tau_m: float = Field(default=20.0, description="Membrane time constant (ms)")
     V_m: float = Field(default=0.0, description="Initial membrane potential (mV)")
 
@@ -226,46 +316,139 @@ class OutputNeuronConfig(BaseModel):
 class NeuronsConfig(BaseModel):
     """Neuron parameters."""
 
-    n_rec: int = Field(default=300, description="Number of recurrent neurons")
+    n_rec: int = Field(default=400, description="Number of recurrent neurons")
     n_out: int = Field(default=2, description="Number of output neurons")
     exc_ratio: float = Field(
         default=0.8,
         description="Fraction of excitatory neurons in recurrent population",
     )
+    exc_adapt_ratio: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Fraction of excitatory neurons that should use the eprop_iaf_adapt model"
+        ),
+    )
     rec: RecurrentNeuronConfig = Field(default_factory=RecurrentNeuronConfig)
     out: OutputNeuronConfig = Field(default_factory=OutputNeuronConfig)
+
+    @property
+    def n_exc(self) -> int:
+        return int(self.n_rec * self.exc_ratio)
+
+    @property
+    def n_exc_adapt(self) -> int:
+        return min(
+            self.n_exc,
+            int(math.floor(self.n_exc * self.exc_adapt_ratio + 0.5)),
+        )
+
+    @property
+    def n_exc_regular(self) -> int:
+        return self.n_exc - self.n_exc_adapt
 
 
 class OptimizerConfig(BaseModel):
     """Optimizer parameters."""
 
-    type: Literal["gradient_descent"] = Field(
-        default="gradient_descent", description="Optimizer type"
-    )
-    eta: float = Field(default=1e-4, description="Learning rate for optimizer")
+    type: str = Field(default="gradient_descent", description="Optimizer type.")
+    eta: float = Field(default=0.01, description="Learning rate for optimizer")
     Wmin: float = Field(description="Minimum synaptic weight (pA)")
     Wmax: float = Field(description="Maximum synaptic weight (pA)")
+    optimize_each_step: bool = Field(
+        default=False,
+        description="If True, optimize each step, if False once per spike",
+    )
+    beta_1: Optional[float] = Field(
+        default=None,
+        description="Adam only: decay rate for the 1st moment (gradient) "
+        "estimate. NEST default 0.9. Unset uses NEST's default.",
+    )
+    beta_2: Optional[float] = Field(
+        default=None,
+        description="Adam only: decay rate for the 2nd moment (variance) "
+        "estimate. NEST default 0.999. Unset uses NEST's default.",
+    )
+    epsilon: Optional[float] = Field(
+        default=None,
+        description="Adam only: numerical-stability constant. NEST default "
+        "1e-7. Unset uses NEST's default.",
+    )
 
 
 class ExcSynapseConfig(BaseModel):
     """Excitatory synapse parameters."""
 
     optimizer: OptimizerConfig = Field(
-        default_factory=lambda: OptimizerConfig(Wmin=-1000.0, Wmax=1000.0)
+        default_factory=lambda: OptimizerConfig(eta=1.0e-05, Wmin=0.0, Wmax=1000.0)
+    )
+
+
+class InhSynapseConfig(BaseModel):
+    """Inhibitory synapse parameters."""
+
+    optimizer: OptimizerConfig = Field(
+        default_factory=lambda: OptimizerConfig(eta=1.0e-05, Wmin=-1000.0, Wmax=0.0)
+    )
+    plastic: bool = Field(
+        default=True,
+        description="Enable plastic inhibitory recurrent synapses during training",
+    )
+    weight: float = Field(
+        default=-1.0, description="Initial inhibitory synaptic weight (pA)"
+    )
+
+
+class DirectionalSynapseWeightConfig(BaseModel):
+    """Directional initial synapse weight."""
+
+    weight: float = Field(
+        default=4.0, description="Initial synaptic weight for this projection (pA)"
+    )
+
+
+class BackgroundPoissonConfig(BaseModel):
+    """Background Poisson drive into the recurrent population."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable background Poisson drive to recurrent neurons.",
+    )
+    rate_hz: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Poisson generator rate in Hz.",
+    )
+    weight: float = Field(
+        default=1.0,
+        description="Static synaptic weight.",
+    )
+    delay: float = Field(
+        default=1.0,
+        gt=0.0,
+        description="Static synaptic delay (ms).",
+    )
+    start_ms: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Start time (ms).",
+    )
+    stop_ms: float | None = Field(
+        default=None,
+        gt=0.0,
+        description="Stop time (ms). Defaults to the simulation duration.",
     )
 
 
 class SynapsesConfig(BaseModel):
     """Synapse parameters."""
 
-    w_input: float = Field(default=20.0, description="Default synaptic weight (pA)")
-    w_rec: float = Field(default=20.0, description="Recurrent synaptic weight (pA)")
+    w_input: float = Field(default=1.0, description="Default synaptic weight (pA)")
+    w_rec: float = Field(default=4.0, description="Recurrent synaptic weight (pA)")
     g: float = Field(default=4.0, description="Inhibitory/excitatory weight ratio")
     conn_bernoulli_p: float = Field(
         default=0.1, description="Connection probability for recurrent connections"
-    )
-    average_gradient: bool = Field(
-        default=False, description="Average gradient across batch"
     )
     static_delay: float = Field(
         default=1.0, description="Delay for static synapses (ms)"
@@ -279,7 +462,14 @@ class SynapsesConfig(BaseModel):
     receptor_type: int = Field(
         default=2, description="Receptor type for rate target synapses"
     )
-    syn: ExcSynapseConfig = Field(default_factory=ExcSynapseConfig)
+    exc: ExcSynapseConfig = Field(default_factory=ExcSynapseConfig)
+    inh: InhSynapseConfig = Field(default_factory=InhSynapseConfig)
+    rec_out: DirectionalSynapseWeightConfig = Field(
+        default_factory=DirectionalSynapseWeightConfig
+    )
+    out_rec: DirectionalSynapseWeightConfig = Field(
+        default_factory=DirectionalSynapseWeightConfig
+    )
 
 
 class MultimeterRecConfig(BaseModel):
@@ -300,7 +490,6 @@ class MultimeterOutConfig(BaseModel):
         default=[
             "V_m",
             "readout_signal",
-            "readout_signal_unnorm",
             "target_signal",
             "error_signal",
         ],
@@ -320,7 +509,32 @@ class RecordingConfig(BaseModel):
 class PlottingConfig(BaseModel):
     """Plotting parameters."""
 
-    do_plotting: bool = Field(default=True, description="Enable or disable plotting")
+    do_plotting: bool = Field(
+        default=True,
+        description="Enable or disable plotting",
+    )
+
+    spikes_plot_n_sequences: int = Field(
+        default=1,
+        ge=1,
+        description="Number of consecutive sequences shown in the spikes-and-dynamics plots.",
+    )
+
+
+class ConvergenceConfig(BaseModel):
+    """Post-training convergence verification."""
+
+    enabled: bool = Field(
+        default=True, description="Run firing-rate convergence check after training"
+    )
+    min_firing_rate_hz: float = Field(
+        default=5.0,
+        description="Below this rate, the recurrent population is considered dead",
+    )
+    max_firing_rate_hz: float = Field(
+        default=50.0,
+        description="Above this rate, the recurrent population is considered diverged",
+    )
 
 
 class MotorControllerConfig(BaseModel):
@@ -329,11 +543,14 @@ class MotorControllerConfig(BaseModel):
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
     task: TaskConfig = Field(default_factory=TaskConfig)
     training: TrainingSignalConfig = Field(default_factory=TrainingSignalConfig)
+    inference: InferenceConfig = Field(default_factory=InferenceConfig)
     rbf: RBFConfig = Field(default_factory=RBFConfig)
     neurons: NeuronsConfig = Field(default_factory=NeuronsConfig)
     synapses: SynapsesConfig = Field(default_factory=SynapsesConfig)
     recording: RecordingConfig = Field(default_factory=RecordingConfig)
     plotting: PlottingConfig = Field(default_factory=PlottingConfig)
+    convergence: ConvergenceConfig = Field(default_factory=ConvergenceConfig)
+    background: BackgroundPoissonConfig = Field(default_factory=BackgroundPoissonConfig)
 
     git_commit: str = Field(
         default="unknown", description="Git commit hash of the training code"

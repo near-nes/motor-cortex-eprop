@@ -1,0 +1,522 @@
+sweep_name: epropplus_input_variability_rbf_resolution
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/epropplus_input_variability/sweeps
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+runs:
+
+  # ============================================================
+  # Baseline: original two trajectories
+  # ============================================================
+
+  - name: baseline_sequential_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &baseline_trajectories
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+
+  - name: baseline_sequential_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_sequential_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_sequential_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *baseline_trajectories
+
+
+  - name: baseline_uniform_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_uniform_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_uniform_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_uniform_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *baseline_trajectories
+
+
+  - name: baseline_shuffled_epochs_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_shuffled_epochs_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_shuffled_epochs_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *baseline_trajectories
+
+  - name: baseline_shuffled_epochs_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *baseline_trajectories
+
+
+  # ============================================================
+  # +/- 1 degree variability
+  # ============================================================
+
+  - name: variability_1deg_sequential_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_1deg
+        - {init_angle_deg: 89.0, target_angle_deg: 139.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 19.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 141.0}
+        - {init_angle_deg: 89.0, target_angle_deg: 21.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 139.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 19.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 141.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 21.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 139.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 19.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 141.0}
+        - {init_angle_deg: 91.0, target_angle_deg: 21.0}
+
+  - name: variability_1deg_sequential_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_sequential_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_sequential_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_1deg
+
+
+  - name: variability_1deg_uniform_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_uniform_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_uniform_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_uniform_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_1deg
+
+
+  - name: variability_1deg_shuffled_epochs_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_shuffled_epochs_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_shuffled_epochs_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_1deg
+
+  - name: variability_1deg_shuffled_epochs_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_1deg
+
+
+  # ============================================================
+  # +/- 2 degrees variability
+  # ============================================================
+
+  - name: variability_2deg_sequential_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_2deg
+        - {init_angle_deg: 88.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 88.0, target_angle_deg: 22.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 22.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 138.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 18.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 142.0}
+        - {init_angle_deg: 92.0, target_angle_deg: 22.0}
+
+  - name: variability_2deg_sequential_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_sequential_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_sequential_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_2deg
+
+
+  - name: variability_2deg_uniform_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_uniform_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_uniform_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_uniform_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_2deg
+
+
+  - name: variability_2deg_shuffled_epochs_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_shuffled_epochs_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_shuffled_epochs_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_2deg
+
+  - name: variability_2deg_shuffled_epochs_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_2deg
+
+
+  # ============================================================
+  # +/- 5 degrees variability
+  # ============================================================
+
+  - name: variability_5deg_sequential_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: &trajectories_5deg
+        - {init_angle_deg: 85.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 85.0, target_angle_deg: 25.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 90.0, target_angle_deg: 25.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 135.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 15.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 140.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 20.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 145.0}
+        - {init_angle_deg: 95.0, target_angle_deg: 25.0}
+
+  - name: variability_5deg_sequential_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_sequential_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_sequential_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: sequential
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_5deg
+
+
+  - name: variability_5deg_uniform_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_uniform_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_uniform_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_uniform_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: uniform
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_5deg
+
+
+  - name: variability_5deg_shuffled_epochs_rbf25
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_shuffled_epochs_rbf50
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 50
+      rbf.sdev_hz: 735.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_shuffled_epochs_rbf75
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 75
+      rbf.sdev_hz: 486.0
+      training.trajectories: *trajectories_5deg
+
+  - name: variability_5deg_shuffled_epochs_rbf100
+    overrides:
+      task.n_iter: 1000
+      plotting.spikes_plot_n_sequences: 6
+      training.sampling.strategy: shuffled_epochs
+      rbf.num_centers: 100
+      rbf.sdev_hz: 364.0
+      training.trajectories: *trajectories_5deg

@@ -95,9 +95,9 @@ model basic_neuron_nestml:
         
 
         # Set the new parameter for the Poisson distribution
-        lambda_poisson = out_rate * resolution() * 0.001
-        
-        # Now draw randomly according to probability distribution        
+        lambda_poisson = -ln(1.0 - out_rate * resolution() * 0.001)
+
+        # Now draw randomly according to probability distribution
         spike_count_out = random_poisson(lambda_poisson)
 
         # If probability not null, emit spike
@@ -153,8 +153,8 @@ model rb_neuron_nestml:
         out_rate = base_rate + max_peak_rate * exp(-((desired - in_rate) / sdev)**2) # Compute the output firing rate
         
         # Set the new parameter for the Poisson distribution
-        lambda_poisson = out_rate * resolution() * 0.001
-        
+        lambda_poisson = -ln(1.0 - out_rate * resolution() * 0.001)
+
         spike_count_out = random_poisson(lambda_poisson)
         
         # If probability not null, emit spike

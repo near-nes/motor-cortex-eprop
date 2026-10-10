@@ -1,0 +1,15 @@
+sweep_name: epropplus_corrected_params
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/epropplus_corrected_params/sweeps
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+fixed_overrides:
+  neurons.n_rec: 300
+# axes:
+#   neurons.exc_adapt_ratio:
+#     - 0.0
+#     - 0.25
+#     - 0.5
+#     - 0.75
+#     - 1.0

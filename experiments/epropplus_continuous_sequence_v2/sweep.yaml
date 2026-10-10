@@ -1,0 +1,214 @@
+sweep_name: epropplus_continuous_sequence_v2
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net/
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+force_retrain: true
+
+# Parameter scan for epropplus_continuous_sequence's poor training results
+# (worst of the epropplus_* experiments: training_success ~7.3M vs ~1-5.6M
+# for the others). Tests 5 independent levers against the unmodified
+# baseline config, each bracketed across a few values, plus 3 combos of
+# each lever's primary guess. All single-seed (1234), n_iter=1000 (~166
+# chain cycles). Promote a promising direction to a 3-seed sweep once found.
+#
+# Levers:
+#   optimizer      gradient_descent (baseline) vs adam: two etas, and two
+#                  Adam-specific hyperparameters (beta_1, beta_2) -- see
+#                  adam_optimizer/adam_fast_beta2 override comments below.
+#   regularization c_reg: 0 (off) / 300 (baseline) / 450 / 600 / 900
+#   firing_rate    f_target: 5 / 10 (baseline) / 20 Hz
+#   rbf_centers    num_centers: 15 / 25 (baseline) / 30 / 40 / 50 / 65,
+#                  sdev_hz scaled with each to keep coverage overlap similar
+#   buffer_size    rb_neuron's spike-counting window: 10 (baseline) / 30 /
+#                  50 ms -- bigger means less Poisson counting noise per
+#                  rate estimate, at the cost of some temporal smoothing.
+#
+# Combos (encoding_quality_combo, learning_dynamics_combo, combined_tuning)
+# use only each lever's primary guess, not the bracket extremes, so a combo
+# result stays interpretable against its standalone runs.
+#
+# Every run merges *run_defaults (seed/n_iter/plotting/trajectories) via
+# YAML's `<<:` merge key, then lists only what it changes. To add another
+# value, copy any single-override run and change it.
+
+run_defaults: &run_defaults
+  simulation.rng_seed: 1234
+  task.n_iter: 1000
+  plotting.spikes_plot_n_sequences: 6
+  training.trajectories: &continuous_chain
+    - {init_angle_deg: 90.0, target_angle_deg: 140.0}
+    - {init_angle_deg: 140.0, target_angle_deg: 140.0}
+    - {init_angle_deg: 140.0, target_angle_deg: 90.0}
+    - {init_angle_deg: 90.0, target_angle_deg: 20.0}
+    - {init_angle_deg: 20.0, target_angle_deg: 20.0}
+    - {init_angle_deg: 20.0, target_angle_deg: 90.0}
+  inference.trajectories: *continuous_chain
+
+runs:
+
+  - name: baseline
+    overrides:
+      <<: *run_defaults
+
+  # --- optimizer ---
+
+  - name: adam_optimizer
+    overrides:
+      <<: *run_defaults
+      # eta isn't a like-for-like swap: gradient_descent's step size is
+      # eta * raw_gradient (can be large), while adam's step size is
+      # normalized to ~eta directly. 0.01/0.04 is a starting guess.
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.01
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.04
+
+  - name: adam_optimizer_lower_eta
+    overrides:
+      <<: *run_defaults
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.02
+
+  - name: adam_fast_beta2
+    overrides:
+      <<: *run_defaults
+      # beta_2 (NEST default 0.999) sets the 2nd-moment estimate's
+      # effective memory at ~1/(1-beta_2) steps -- 1000 steps for the
+      # default, i.e. our *entire* training run. It may barely finish
+      # calibrating by the end. beta_2=0.99 shortens that to ~100 steps,
+      # letting the adaptive per-weight learning rate actually settle
+      # within this run's budget.
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.01
+      synapses.exc.optimizer.beta_2: 0.99
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.04
+      synapses.inh.optimizer.beta_2: 0.99
+
+  - name: adam_lower_beta1
+    overrides:
+      <<: *run_defaults
+      # beta_1 (NEST default 0.9) sets the gradient-momentum memory
+      # (~10 steps by default). 0.8 (~5 steps) reacts faster to recent
+      # gradients -- worth checking since e-prop gradients from Poisson
+      # spiking are already noisy, so more momentum isn't automatically
+      # better here.
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.01
+      synapses.exc.optimizer.beta_1: 0.8
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.04
+      synapses.inh.optimizer.beta_1: 0.8
+
+  # --- regularization (spike-count penalty strength) ---
+
+  - name: no_regularization
+    overrides:
+      <<: *run_defaults
+      neurons.rec.c_reg: 0.0
+
+  - name: regularization_moderate
+    overrides:
+      <<: *run_defaults
+      neurons.rec.c_reg: 450.0
+
+  - name: regularization_strong
+    overrides:
+      <<: *run_defaults
+      neurons.rec.c_reg: 600.0
+
+  - name: regularization_aggressive
+    overrides:
+      <<: *run_defaults
+      neurons.rec.c_reg: 900.0
+
+  # --- target firing rate ---
+
+  - name: firing_rate_low
+    overrides:
+      <<: *run_defaults
+      neurons.rec.f_target: 5.0
+
+  - name: firing_rate_high
+    overrides:
+      <<: *run_defaults
+      neurons.rec.f_target: 20.0
+
+  # --- RBF input encoding resolution ---
+  # num_centers/sdev_hz pairs keep the ~0.6x spacing/sdev ratio roughly
+  # constant as centers get denser (spacing = 60000Hz / (num_centers - 1)):
+  # 15/2570, 25/1500 (baseline), 30/1240, 40/900, 50/730, 65/560.
+
+  - name: coarser_rbf_centers
+    overrides:
+      <<: *run_defaults
+      rbf.num_centers: 15
+      rbf.sdev_hz: 2570.0
+
+  - name: moderate_rbf_centers
+    overrides:
+      <<: *run_defaults
+      rbf.num_centers: 30
+      rbf.sdev_hz: 1240.0
+
+  - name: more_rbf_centers
+    overrides:
+      <<: *run_defaults
+      rbf.num_centers: 40
+      rbf.sdev_hz: 900.0
+
+  - name: finer_rbf_centers
+    overrides:
+      <<: *run_defaults
+      rbf.num_centers: 50
+      rbf.sdev_hz: 730.0
+
+  - name: finest_rbf_centers
+    overrides:
+      <<: *run_defaults
+      rbf.num_centers: 65
+      rbf.sdev_hz: 560.0
+
+  # --- RBF spike-counting window ---
+
+  - name: larger_buffer
+    overrides:
+      <<: *run_defaults
+      rbf.buffer_size: 30.0
+
+  - name: max_buffer
+    overrides:
+      <<: *run_defaults
+      rbf.buffer_size: 50.0
+
+  # --- combos (primary guess from each lever) ---
+
+  - name: encoding_quality_combo
+    overrides:
+      <<: *run_defaults
+      rbf.num_centers: 40
+      rbf.sdev_hz: 900.0
+      rbf.buffer_size: 30.0
+
+  - name: learning_dynamics_combo
+    overrides:
+      <<: *run_defaults
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.01
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.04
+      neurons.rec.c_reg: 600.0
+
+  - name: combined_tuning
+    overrides:
+      <<: *run_defaults
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.01
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.04
+      neurons.rec.c_reg: 600.0
+      rbf.num_centers: 40
+      rbf.sdev_hz: 900.0
+      rbf.buffer_size: 30.0

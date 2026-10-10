@@ -1,0 +1,30 @@
+sweep_name: legacy_like_1500_timephases
+base_config: legacy_like_1500_timephases.yaml
+output_dir: ../../results/sweeps/legacy_sequence
+nest_module: motor_neuron_module
+force_retrain: true
+fixed_overrides:
+  simulation.total_num_virtual_procs: 4
+  task.n_iter: 20
+runs:
+  - name: eta_0p01_0p01
+    overrides:
+      synapses.exc.optimizer.eta: 0.01
+      synapses.inh.optimizer.eta: 0.01
+  - name: eta_0p05_0p05
+    overrides:
+      synapses.exc.optimizer.eta: 0.05
+      synapses.inh.optimizer.eta: 0.05
+  - name: eta_0p10_0p10
+    overrides:
+      synapses.exc.optimizer.eta: 0.10
+      synapses.inh.optimizer.eta: 0.10
+
+# Or specify axes for a grid sweep (uncomment the following lines and comment out the "runs" section above)
+  # axes:
+  #   task.input_shift_ms:
+  #     - 75.0
+  #     - 100.0
+  #   task.learning_start_ms:
+  #     - 550.0
+  #     - 650.0

@@ -17,7 +17,7 @@ All main code is now located in the `motor_controller_model/` package directory.
 - [`utils.py`](utils.py): Shared utilities
 - [`nestml_neurons/`](nestml_neurons/): Custom NESTML neuron models and compilation script
 
-**Note:** Simulation results are saved in the `sim_results/` directory at the repository root, not within this package directory.
+**Note:** Simulation results are saved in the `results/` directory at the repository root, not within this package directory.
 
 ## Usage
 
@@ -35,16 +35,75 @@ python -m motor_controller_model.run_m1 --force-retrain \
     --nest-module "./motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so"
 ```
 
+Run from an experiment YAML (single general runner):
+```bash
+python -m motor_controller_model.run_m1 \
+    --config experiments/legacy_sequence/legacy_like_1500_timephases.yaml \
+    --output-dir results \
+    --run-name legacy_sequence \
+    --force-retrain \
+    --nest-module "./motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so"
+```
+
+Notes:
+- `--config` is optional; if omitted, built-in defaults are used (backward compatible).
+- `--run-name` is optional; if set, artifacts are saved under `--output-dir/<run-name>`.
+
+### Parameter Sweeps
+
+Use the sweep runner for config-driven sweeps with one run directory per trial:
+```bash
+python -m motor_controller_model.sweep \
+    --spec experiments/legacy_sequence/legacy_like_1500_timephases_sweep.yaml
+```
+
+For local testing, you can run sweep + best-run analysis in one command:
+```bash
+python -m motor_controller_model.sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --analyze \
+    --promote
+```
+
+The sweep runner writes a timestamped root directory containing per-run configs, a JSONL manifest, and a summary file. For Slurm, point each array task at the same spec and pass `--task-index $SLURM_ARRAY_TASK_ID` so local testing and cluster execution stay identical.
+
+After a sweep finishes, you can rank runs and pick the best one. By default, ranking is training-only and uses `training_success_score` (with fallback to `final_training_loss` for older sweeps):
+```bash
+python -m motor_controller_model.analyze_sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --latest
+```
+
+This prints the best run and top-k ranking, and writes `best_run_report.json` in the selected sweep directory.
+
+To force pure final-loss ranking explicitly:
+```bash
+python -m motor_controller_model.analyze_sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --latest \
+    --metric final_training_loss
+```
+
+To also copy the best run to a stable location:
+```bash
+python -m motor_controller_model.analyze_sweep \
+    --spec experiments/update_eprop_neuron_model_test/update_eprop_neuron_model_sweep.yaml \
+    --latest \
+    --promote
+```
+
+By default, the best run is copied to `<sweep_root>/best/`. You can override this with `--promote-dir`.
+
 
 
 ## Key Configuration Options
 
-- `task.learning_window_ms`: Duration (ms) of the learning window, anchored to the **end** of each update interval. NEST zeros error/target/readout signals before this window.
+- `task.learning_start_ms`: Absolute start time (ms) for learning window within each sequence. NEST zeros error/target/readout signals before this time. E.g., with sequence=1500ms and learning_start_ms=800ms, learning is active from t=800 to t=1500.
 - `task.input_shift_ms`: Temporal delay (ms) to shift planner input backwards, allowing M1 time to compute its output.
 
 ## Results
 
-Simulation results and plots are saved in the `sim_results/` directory at the repository root, organized by experiment configuration. Each run creates a subfolder with files such as:
+Simulation results and plots are saved in the `results/` directory at the repository root, organized by experiment configuration. Each run creates a subfolder with files such as:
 
 - `training_error.png`: The training loss curve.
 - `spikes_and_dynamics.png`: Visualization of network activity.
