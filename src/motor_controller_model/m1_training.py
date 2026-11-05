@@ -2,6 +2,7 @@
 m1_training: Standalone training function for the M1 e-prop network.
 """
 
+import json
 from pathlib import Path
 from typing import List
 
@@ -10,13 +11,21 @@ import numpy as np
 import structlog
 
 from .config_schema import MotorControllerConfig, TrainingTimings
+from .convergence import TrainingDidNotConverge, check_firing_rate
 from .m1_network import M1Network, get_weights
 from .plot_results import (
     plot_spikes_and_dynamics,
     plot_training_error,
     plot_weight_matrices,
 )
-from .signals import TrainingSignals, generate_training_signals
+from .signals import (
+    TrainingSignals,
+    generate_training_signals,
+    sample_trajectory_indices,
+)
+from .utils import install_nestml_module
+from .background import connect_background_poisson
+from .training_outputs import TrainingOutputs
 
 _log = structlog.get_logger("m1_train")
 
@@ -26,11 +35,9 @@ def setup_nest_kernel(
 ):
     """Reset NEST and configure kernel for M1 training."""
     nest.ResetKernel()
-    nest.Install(nest_module)
+    install_nestml_module(nest_module)
+    np.random.seed(config.simulation.rng_seed)
     nest.set(
-        eprop_learning_window=timings.learning_window,
-        eprop_reset_neurons_on_update=True,
-        eprop_update_interval=timings.sequence_ms,
         print_time=config.simulation.print_time,
         resolution=config.simulation.step,
         total_num_virtual_procs=config.simulation.total_num_virtual_procs,
@@ -46,19 +53,32 @@ def setup_nest_kernel(
 def _generate_all_signals(
     config: MotorControllerConfig,
 ) -> List[TrainingSignals]:
-    """Generate input/target signals for every trajectory in the config."""
-    return [
+    """Generate input/target signals for the sampled training iterations."""
+    rng = np.random.default_rng(config.simulation.rng_seed)
+
+    schedule = sample_trajectory_indices(
+        n_pool=len(config.training.trajectories),
+        n_iter=config.task.n_iter,
+        strategy=config.training.sampling.strategy,
+        rng=rng,
+    )
+
+    all_signals = [
         generate_training_signals(
-            spec, config.training, config.simulation.step, config.task.input_shift_ms
+            config.training.trajectories[idx],
+            config.training,
+            config.simulation.step,
+            config.task.input_shift_ms,
         )
-        for spec in config.training.trajectories
+        for idx in schedule
     ]
+
+    return all_signals
 
 
 def _create_planner_neurons(
     network: M1Network,
     all_signals: List[TrainingSignals],
-    timings: TrainingTimings,
     config: MotorControllerConfig,
 ):
     """Create tracking_neuron_nestml populations as planner input.
@@ -68,12 +88,10 @@ def _create_planner_neurons(
     Connects directly to the RBF layer.
     """
     n_input = config.training.n_input_neurons
-    n_seq_steps = timings.n_timesteps_per_sequence
     tcfg = config.training
 
-    full_traj = np.tile(
-        np.concatenate([sig.input_trajectory for sig in all_signals]),
-        timings.n_iter,
+    full_traj = np.concatenate(
+        [sig.input_trajectory for sig in all_signals]
     )
     sim_steps = len(full_traj)
 
@@ -89,19 +107,46 @@ def _create_planner_neurons(
         },
     )
 
-    planner_neg = nest.Create("tracking_neuron_nestml", n_input)
-    nest.SetStatus(
-        planner_neg,
-        {
-            "kp": tcfg.planner_kp,
-            "base_rate": tcfg.planner_base_rate,
-            "pos": False,
-            "traj": full_traj.tolist(),
-            "simulation_steps": sim_steps,
-        },
-    )
+    # planner_neg = nest.Create("tracking_neuron_nestml", n_input)
+    # nest.SetStatus(
+    #     planner_neg,
+    #     {
+    #         "kp": tcfg.planner_kp,
+    #         "base_rate": tcfg.planner_base_rate,
+    #         "pos": False,
+    #         "traj": full_traj.tolist(),
+    #         "simulation_steps": sim_steps,
+    #     },
+    # )
 
     network.connect(planner_pos)
+    # network.connect(planner_neg)
+
+
+def _build_learning_window_schedule(
+    timings: TrainingTimings,
+    learning_start_ms: float,
+) -> tuple[list[float], list[float]]:
+    """Build piecewise-constant learning-window signal for readout receptor 1.
+
+    The signal is 0 before ``learning_start_ms`` within each sequence and 1 from
+    ``learning_start_ms`` until sequence end.
+    """
+    step_ms = timings.step_ms
+    seq_starts = np.arange(0.0, timings.task_ms, timings.sequence_ms)
+
+    times = [step_ms]
+    values = [0.0]
+
+    for seq_start in seq_starts:
+        start_time = seq_start + learning_start_ms + step_ms
+        end_time = seq_start + timings.sequence_ms + step_ms
+
+        if start_time < end_time:
+            times.extend([start_time, end_time])
+            values.extend([1.0, 0.0])
+
+    return times, values
 
 
 def _create_target_generators(
@@ -114,18 +159,21 @@ def _create_target_generators(
     step_ms = timings.step_ms
     syn_cfg = config.synapses
 
-    concat_pos = np.tile(
-        np.concatenate([sig.target_rates_pos for sig in all_signals]),
-        timings.n_iter,
+    concat_pos = np.concatenate(
+        [sig.target_rates_pos for sig in all_signals]
     )
-    concat_neg = np.tile(
-        np.concatenate([sig.target_rates_neg for sig in all_signals]),
-        timings.n_iter,
+
+    concat_neg = np.concatenate(
+        [sig.target_rates_neg for sig in all_signals]
     )
 
     amp_times = np.arange(len(concat_pos)) * step_ms + step_ms
 
+    # Create generator nodes first.
     gen_rate_target = nest.Create("step_rate_generator", 2)
+    gen_learning_window = nest.Create("step_rate_generator", 1)
+
+    # Configure target signals.
     nest.SetStatus(
         gen_rate_target[0],
         {
@@ -141,6 +189,23 @@ def _create_target_generators(
         },
     )
 
+    # Learning-window gate for eprop_readout (receptor 1),
+    # separate from target input on receptor 2.
+    lw_times, lw_values = _build_learning_window_schedule(
+        timings,
+        float(config.task.learning_start_ms),
+    )
+
+    # Configure learning-window signal.
+    nest.SetStatus(
+        gen_learning_window[0],
+        {
+            "amplitude_times": lw_times,
+            "amplitude_values": lw_values,
+        },
+    )
+
+    # Connect generators after all node creation/configuration.
     nest.Connect(
         gen_rate_target[0],
         network.nrns_out_p,
@@ -159,6 +224,16 @@ def _create_target_generators(
             "synapse_model": "rate_connection_delayed",
             "delay": syn_cfg.rate_target_delay,
             "receptor_type": syn_cfg.receptor_type,
+        },
+    )
+    nest.Connect(
+        gen_learning_window,
+        network.nrns_out_p + network.nrns_out_n,
+        "all_to_all",
+        {
+            "synapse_model": "rate_connection_delayed",
+            "delay": syn_cfg.rate_target_delay,
+            "receptor_type": 1,
         },
     )
 
@@ -232,7 +307,8 @@ def train_m1(
     config: MotorControllerConfig,
     artifacts_dir: Path,
     nest_module: str = None,
-) -> M1Network:
+    return_outputs: bool = False,
+) -> M1Network | tuple[M1Network, TrainingOutputs]:
     """Train the M1 network using e-prop and return the trained M1Network.
 
     Training data is fully specified via ``config.training`` — no external
@@ -241,8 +317,9 @@ def train_m1(
     timings = TrainingTimings.from_config(config)
     _log.debug(
         "starting M1 training",
-        n_trajectories=timings.n_samples,
-        n_iter=timings.n_iter,
+        pool_size=timings.pool_size,
+        sampled_sequences=timings.n_samples,
+        sampling=config.training.sampling.strategy,
         sim_ms=timings.task_ms,
     )
 
@@ -253,8 +330,15 @@ def train_m1(
     network = M1Network(config)
     network.build_network(simulation_time_ms=timings.task_ms, train=True)
 
+    # Connect background Poisson drive to recurrent neurons
+    connect_background_poisson(
+        target_population=network.nrns_rec,
+        simulation_time_ms=timings.task_ms,
+        config=config,
+    )
+
     # Wire up training-specific NEST objects
-    _create_planner_neurons(network, all_signals, timings, config)
+    _create_planner_neurons(network, all_signals, config)
     _create_target_generators(network, all_signals, timings, config)
     mm_out, mm_rec, spike_recorder, spike_recorder_rb = _create_recorders(
         network, timings, config
@@ -264,6 +348,7 @@ def train_m1(
     nrns_out = network.nrns_out_p + network.nrns_out_n
     weights_pre = {
         "rec_rec": get_weights(network.nrns_rec, network.nrns_rec),
+        "rb_rec": get_weights(network.nrns_rb, network.nrns_rec),
         "rec_out": get_weights(network.nrns_rec, nrns_out),
     }
 
@@ -284,11 +369,67 @@ def train_m1(
     loss = _compute_loss(events_mm_out, timings)
     np.save(artifacts_dir / "training_loss.npy", loss)
 
+    # Calculate the duration of a single training iteration (all trajectories combined)
+    iter_duration_ms = timings.sequence_ms
+    last_iter_start_ms = timings.task_ms - timings.sequence_ms
+
+    events_rec = spike_recorder.get("events")
+    spike_times = events_rec["times"]
+    spike_senders = events_rec["senders"]
+
+    # Filter spikes that occurred only in the last iteration.
+    mask = spike_times >= last_iter_start_ms
+    spike_times_last_iter = spike_times[mask]
+    spike_senders_last_iter = spike_senders[mask]
+
+    n_neurons = len(network.nrns_rec)
+    iter_duration_s = iter_duration_ms / 1000.0
+
+    if n_neurons > 0 and iter_duration_s > 0:
+        n_spikes_last_iter = len(spike_times_last_iter)
+        mean_firing_rate_hz = n_spikes_last_iter / (n_neurons * iter_duration_s)
+
+        rec_ids = np.asarray([nrn.global_id for nrn in network.nrns_rec])
+        spike_counts = np.zeros(n_neurons, dtype=float)
+        unique_senders, sender_counts = np.unique(
+            spike_senders_last_iter, return_counts=True
+        )
+        sender_to_index = {int(gid): idx for idx, gid in enumerate(rec_ids)}
+        for sender, count in zip(unique_senders, sender_counts):
+            sender_gid = int(getattr(sender, "global_id", sender))
+            neuron_index = sender_to_index.get(sender_gid)
+            if neuron_index is not None:
+                spike_counts[neuron_index] = float(count)
+
+        rate_per_neuron_hz = spike_counts / iter_duration_s
+        rate_mean = float(np.mean(rate_per_neuron_hz))
+        rate_std = float(np.std(rate_per_neuron_hz))
+        spike_rate_cv = float(rate_std / (abs(rate_mean) + 1e-12))
+    else:
+        mean_firing_rate_hz = 0.0
+        spike_rate_cv = 0.0
+
+    with open(artifacts_dir / "mean_firing_rate.json", "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "mean_firing_rate_hz": float(mean_firing_rate_hz),
+                "spike_rate_cv": float(spike_rate_cv),
+            },
+            f,
+        )
+
     # Plotting
     if config.plotting.do_plotting:
         _log.debug("generating plots")
 
         plot_training_error(loss, artifacts_dir / "training_error.png")
+        last_10pct_start = max(0, int(np.floor(len(loss) * 0.9)))
+        last_10pct_x = np.arange(last_10pct_start + 1, len(loss) + 1)
+        plot_training_error(
+            loss[last_10pct_start:],
+            artifacts_dir / "training_error_last_10pct.png",
+            x=last_10pct_x,
+        )
         plot_spikes_and_dynamics(
             spike_recorder.get("events"),
             mm_rec.get("events"),
@@ -300,13 +441,47 @@ def train_m1(
             input_signals=all_signals,
             events_sr_rb=spike_recorder_rb.get("events"),
             nrns_rb=network.nrns_rb,
+            n_sequences=config.plotting.spikes_plot_n_sequences
         )
         weight_colors = {"blue": "#1f77b4", "red": "#d62728", "white": "#ffffff"}
+        n_exc = config.neurons.n_exc
         plot_weight_matrices(
             weights_pre,
             weights_post,
             weight_colors,
             artifacts_dir / "weight_matrices.png",
+            n_exc=n_exc,
+        )
+
+    if config.convergence.enabled:
+        result = check_firing_rate(float(mean_firing_rate_hz), config.convergence)
+        if not result.ok:
+            failure_path = artifacts_dir / "convergence_failure.json"
+            with open(failure_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "reason": result.reason,
+                        "detail": result.detail,
+                        "mean_firing_rate_hz": result.mean_firing_rate_hz,
+                        "min_firing_rate_hz": config.convergence.min_firing_rate_hz,
+                        "max_firing_rate_hz": config.convergence.max_firing_rate_hz,
+                    },
+                    f,
+                    indent=2,
+                )
+            _log.error(
+                "training did not converge",
+                reason=result.reason,
+                detail=result.detail,
+            )
+            raise TrainingDidNotConverge(result.detail)
+
+    if return_outputs:
+        return network, TrainingOutputs(
+            loss=loss,
+            recurrent_events=events_rec,
+            output_events=events_mm_out,
+            recurrent_neurons=network.nrns_rec,
         )
 
     return network

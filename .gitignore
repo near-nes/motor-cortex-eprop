@@ -10,7 +10,6 @@ dist/
 *.pyd
 
 # Simulation results and reports
-sim_results/
 report/
 
 # NESTML build outputs
@@ -18,3 +17,15 @@ src/motor_controller_model/nestml_neurons/nestml_target/
 src/motor_controller_model/nestml_neurons/report/
 outdated/testing_nestml_neurons/target/
 outdated/testing_nestml_neurons/report/
+
+# Ignore environment files
+venv/
+
+# Keep only selected results subfolders under version control.
+results/*
+!results/legacy_sequence/
+!results/legacy_sequence/**
+!results/sample_good_results/
+!results/sample_good_results/**
+
+tutorial_results/*

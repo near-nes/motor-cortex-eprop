@@ -1,0 +1,310 @@
+sweep_name: epropplus_two_traj_optimizer_search
+base_config: config.yaml
+output_dir: /projects/eprop_motor_net
+nest_module: src/motor_controller_model/nestml_neurons/nestml_install/motor_neuron_module.so
+
+# Quick screening sweep (task.n_iter=150, ~10x shorter than 1000-iter runs).
+# Crosses RBF encoding regime x Adam eta as `runs:`, not `axes:` -- axes does
+# an independent Cartesian product (see expand_run_specs() in sweep.py),
+# which would decouple num_centers from sdev_hz and eta_exc from eta_inh.
+# Rebuild nest_module first (commit d57cfcd changed lambda_poisson):
+#   python src/motor_controller_model/nestml_neurons/compile_nestml_neurons.py
+#
+# RBF presets ("c<num_centers>p<max_peak_rate_hz>"): max_peak_rate_hz=1000
+# (default) sits exactly on the lambda_poisson singularity (p=out_rate*dt=1).
+# More centers -> less peak rate needed per center, so peak drops as centers
+# rise. sdev_hz keeps the ~0.6x-of-spacing ratio used elsewhere in this repo
+# (sdev = 0.6 * 60000/(num_centers-1)).
+#   c25p1000  default, at the singularity (reference)
+#   c25p200   same centers, peak-only control
+#   c40p600 / c65p400 / c100p250   centers+peak scaled together
+#
+# Adam presets: NEST's own eta default is 1e-4; every eta tried here so far
+# (0.005-0.08) was 50x-800x above that, and lower eta scored better every
+# time -- this brackets down toward NEST's default. 4:1 exc:inh ratio and
+# default beta_1/beta_2 held fixed to isolate eta alone.
+#   gd (control) | adam_tiny .0002/.0008 | adam_xlow .0005/.002
+#   adam_vlow .001/.004 | adam_low2 .002/.008 | adam_low_anchor .005/.02 (prior best)
+#
+# 6 optimizer presets x 5 RBF presets = 30 runs.
+
+runs:
+  - name: gd__c25p1000
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 1000.0
+
+  - name: gd__c25p200
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 200.0
+
+  - name: gd__c40p600
+    overrides:
+      rbf.num_centers: 40
+      rbf.sdev_hz: 923.1
+      rbf.max_peak_rate_hz: 600.0
+
+  - name: gd__c65p400
+    overrides:
+      rbf.num_centers: 65
+      rbf.sdev_hz: 562.5
+      rbf.max_peak_rate_hz: 400.0
+
+  - name: gd__c100p250
+    overrides:
+      rbf.num_centers: 100
+      rbf.sdev_hz: 363.6
+      rbf.max_peak_rate_hz: 250.0
+
+  - name: adam_tiny__c25p1000
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 1000.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.0008
+
+  - name: adam_tiny__c25p200
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 200.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.0008
+
+  - name: adam_tiny__c40p600
+    overrides:
+      rbf.num_centers: 40
+      rbf.sdev_hz: 923.1
+      rbf.max_peak_rate_hz: 600.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.0008
+
+  - name: adam_tiny__c65p400
+    overrides:
+      rbf.num_centers: 65
+      rbf.sdev_hz: 562.5
+      rbf.max_peak_rate_hz: 400.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.0008
+
+  - name: adam_tiny__c100p250
+    overrides:
+      rbf.num_centers: 100
+      rbf.sdev_hz: 363.6
+      rbf.max_peak_rate_hz: 250.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.0008
+
+  - name: adam_xlow__c25p1000
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 1000.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.002
+
+  - name: adam_xlow__c25p200
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 200.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.002
+
+  - name: adam_xlow__c40p600
+    overrides:
+      rbf.num_centers: 40
+      rbf.sdev_hz: 923.1
+      rbf.max_peak_rate_hz: 600.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.002
+
+  - name: adam_xlow__c65p400
+    overrides:
+      rbf.num_centers: 65
+      rbf.sdev_hz: 562.5
+      rbf.max_peak_rate_hz: 400.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.002
+
+  - name: adam_xlow__c100p250
+    overrides:
+      rbf.num_centers: 100
+      rbf.sdev_hz: 363.6
+      rbf.max_peak_rate_hz: 250.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.0005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.002
+
+  - name: adam_vlow__c25p1000
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 1000.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.001
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.004
+
+  - name: adam_vlow__c25p200
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 200.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.001
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.004
+
+  - name: adam_vlow__c40p600
+    overrides:
+      rbf.num_centers: 40
+      rbf.sdev_hz: 923.1
+      rbf.max_peak_rate_hz: 600.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.001
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.004
+
+  - name: adam_vlow__c65p400
+    overrides:
+      rbf.num_centers: 65
+      rbf.sdev_hz: 562.5
+      rbf.max_peak_rate_hz: 400.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.001
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.004
+
+  - name: adam_vlow__c100p250
+    overrides:
+      rbf.num_centers: 100
+      rbf.sdev_hz: 363.6
+      rbf.max_peak_rate_hz: 250.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.001
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.004
+
+  - name: adam_low2__c25p1000
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 1000.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.008
+
+  - name: adam_low2__c25p200
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 200.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.008
+
+  - name: adam_low2__c40p600
+    overrides:
+      rbf.num_centers: 40
+      rbf.sdev_hz: 923.1
+      rbf.max_peak_rate_hz: 600.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.008
+
+  - name: adam_low2__c65p400
+    overrides:
+      rbf.num_centers: 65
+      rbf.sdev_hz: 562.5
+      rbf.max_peak_rate_hz: 400.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.008
+
+  - name: adam_low2__c100p250
+    overrides:
+      rbf.num_centers: 100
+      rbf.sdev_hz: 363.6
+      rbf.max_peak_rate_hz: 250.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.002
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.008
+
+  - name: adam_low_anchor__c25p1000
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 1000.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.02
+
+  - name: adam_low_anchor__c25p200
+    overrides:
+      rbf.num_centers: 25
+      rbf.sdev_hz: 1500.0
+      rbf.max_peak_rate_hz: 200.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.02
+
+  - name: adam_low_anchor__c40p600
+    overrides:
+      rbf.num_centers: 40
+      rbf.sdev_hz: 923.1
+      rbf.max_peak_rate_hz: 600.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.02
+
+  - name: adam_low_anchor__c65p400
+    overrides:
+      rbf.num_centers: 65
+      rbf.sdev_hz: 562.5
+      rbf.max_peak_rate_hz: 400.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.02
+
+  - name: adam_low_anchor__c100p250
+    overrides:
+      rbf.num_centers: 100
+      rbf.sdev_hz: 363.6
+      rbf.max_peak_rate_hz: 250.0
+      synapses.exc.optimizer.type: adam
+      synapses.exc.optimizer.eta: 0.005
+      synapses.inh.optimizer.type: adam
+      synapses.inh.optimizer.eta: 0.02
