@@ -78,28 +78,22 @@ def _create_planner_neurons(
     sim_steps = len(full_traj)
 
     planner_pos = nest.Create("tracking_neuron_nestml", n_input)
-    nest.SetStatus(
-        planner_pos,
-        {
+    planner_pos.set({
             "kp": tcfg.planner_kp,
             "base_rate": tcfg.planner_base_rate,
             "pos": True,
             "traj": full_traj.tolist(),
             "simulation_steps": sim_steps,
-        },
-    )
+        })
 
     # planner_neg = nest.Create("tracking_neuron_nestml", n_input)
-    # nest.SetStatus(
-    #     planner_neg,
-    #     {
+    # #     planner_neg.set({#     {
     #         "kp": tcfg.planner_kp,
     #         "base_rate": tcfg.planner_base_rate,
     #         "pos": False,
     #         "traj": full_traj.tolist(),
     #         "simulation_steps": sim_steps,
-    #     },
-    # )
+    #     }: #})
 
     network.connect(planner_pos)
     # network.connect(planner_neg)
@@ -157,20 +151,14 @@ def _create_target_generators(
     gen_learning_window = nest.Create("step_rate_generator", 1)
 
     # Configure target signals.
-    nest.SetStatus(
-        gen_rate_target[0],
-        {
+    gen_rate_target[0].set({
             "amplitude_times": amp_times,
             "amplitude_values": concat_pos,
-        },
-    )
-    nest.SetStatus(
-        gen_rate_target[1],
-        {
+        })
+    gen_rate_target[1].set({
             "amplitude_times": amp_times,
             "amplitude_values": concat_neg,
-        },
-    )
+        })
 
     # Learning-window gate for eprop_readout (receptor 1),
     # separate from target input on receptor 2.
@@ -180,13 +168,10 @@ def _create_target_generators(
     )
 
     # Configure learning-window signal.
-    nest.SetStatus(
-        gen_learning_window[0],
-        {
+    gen_learning_window[0].set({
             "amplitude_times": lw_times,
             "amplitude_values": lw_values,
-        },
-    )
+        })
 
     # Connect generators after all node creation/configuration.
     nest.Connect(

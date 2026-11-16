@@ -19,6 +19,21 @@ class M1SubModule(Protocol):
     def get_output_pops(self) -> Tuple: ...
 
 
+def adapt_eprop_params_to_nest(params: dict) -> dict:
+    """Translate surrogate-gradient parameters to the running NEST version.
+
+    NEST 3.10 renamed the eprop parameters: beta -> surrogate_gradient_width
+    (width = 1/beta) and gamma -> surrogate_gradient_height. The formulas are
+    otherwise identical, so the translation is exact.
+    """
+    if "beta" not in params or "beta" in nest.GetDefaults("eprop_iaf"):
+        return params
+    params = dict(params)
+    params["surrogate_gradient_width"] = 1.0 / params.pop("beta")
+    params["surrogate_gradient_height"] = params.pop("gamma")
+    return params
+
+
 def get_weights(pop_pre, pop_post):
     """Extract connection weights between two populations as a dictionary."""
     conns = nest.GetConnections(pop_pre, pop_post).get(["source", "target", "weight"])
@@ -155,13 +170,13 @@ class M1Network:
             "max_peak_rate": rbf_cfg.max_peak_rate_hz,
         }
         self.nrns_rb = nest.Create("rb_neuron_nestml", n_rb)
-        nest.SetStatus(self.nrns_rb, params_rb)
+        self.nrns_rb.set(params_rb)
 
         desired_rates = np.linspace(
             rbf_cfg.desired_min_rate, rbf_cfg.desired_max_rate, n_rb
         )
         for i, nrn in enumerate(self.nrns_rb):
-            nest.SetStatus(nrn, {"desired": desired_rates[i]})
+            nrn.set({"desired": desired_rates[i]})
 
         # 2. Create Recurrent & Output Neurons
         n_rec = self.config.neurons.n_rec
@@ -171,8 +186,12 @@ class M1Network:
         n_exc_regular = self.config.neurons.n_exc_regular
         n_inh = n_rec - n_exc
         rec_cfg = self.config.neurons.rec
-        rec_params_regular = rec_cfg.to_nest_params(step_ms, include_adapt=False)
-        rec_params_adapt = rec_cfg.to_nest_params(step_ms, include_adapt=True)
+        rec_params_regular = adapt_eprop_params_to_nest(
+            rec_cfg.to_nest_params(step_ms, include_adapt=False)
+        )
+        rec_params_adapt = adapt_eprop_params_to_nest(
+            rec_cfg.to_nest_params(step_ms, include_adapt=True)
+        )
 
         recurrent_parts = []
         if n_exc_regular:
@@ -195,7 +214,7 @@ class M1Network:
             self.config.neurons.rec.V_th,
             len(self.nrns_rec),
         )
-        nest.SetStatus(self.nrns_rec, "V_m", v_m_init)
+        self.nrns_rec.set({"V_m": v_m_init})
 
         if train:
             out_params = {
@@ -220,9 +239,9 @@ class M1Network:
                     "eprop_isi_trace_cutoff": sequence_duration_ms,
                 }
             self.nrns_out_p = nest.Create(output_neuron_model, n_per_channel)
-            nest.SetStatus(self.nrns_out_p, out_params)
+            self.nrns_out_p.set(out_params)
             self.nrns_out_n = nest.Create(output_neuron_model, n_per_channel)
-            nest.SetStatus(self.nrns_out_n, out_params)
+            self.nrns_out_n.set(out_params)
 
         # 3. Create Connections
         if train:
@@ -436,5 +455,5 @@ class M1Network:
             conn = nest.GetConnections(
                 nest.NodeCollection([s]), nest.NodeCollection([t])
             )
-            nest.SetStatus(conn, {"weight": w})
+            conn.set({"weight": w})
         self._log.debug("connected updated weights rec to out")
